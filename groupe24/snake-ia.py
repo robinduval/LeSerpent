@@ -336,19 +336,40 @@ class Linear_QNet(nn.Module):
         x = self.linear2(x)
         return x
         
-    def save(self, file_name='model.pth'):
-        """Save model weights to file."""
-        torch.save(self.state_dict(), file_name)
+    def save(self, file_name='model.pth', n_games=0):
+        """Save model weights and training state to file."""
+        checkpoint = {
+            'model_state': self.state_dict(),
+            'n_games': n_games,
+            'version': 2  # Version marker for new format
+        }
+        torch.save(checkpoint, file_name)
         print(f"Model saved to {file_name}")
         
     def load(self, file_name='model.pth'):
-        """Load model weights from file."""
+        """Load model weights from file. Backward compatible with old format."""
         if os.path.exists(file_name):
-            self.load_state_dict(torch.load(file_name))
+            checkpoint = torch.load(file_name)
+            
+            # Check if it's the new format (dict) or old format (state_dict only)
+            if isinstance(checkpoint, dict) and 'model_state' in checkpoint:
+                # New format: extract model state and n_games
+                self.load_state_dict(checkpoint['model_state'])
+                n_games = checkpoint.get('n_games', 0)
+                print(f"Model loaded from {file_name}")
+                if n_games > 0:
+                    print(f"  Training progress: {n_games} games")
+                return n_games
+            else:
+                # Old format: checkpoint is directly the state_dict
+                self.load_state_dict(checkpoint)
+                print(f"Model loaded from {file_name} (legacy format)")
+                return 84  # No game count in old format
+            
             self.eval()
-            print(f"Model loaded from {file_name}")
         else:
             print(f"No model found at {file_name}")
+            return 0
 
 # ==================== TRAINING COMPONENT ====================
 
@@ -672,8 +693,16 @@ def train():
     
     # Load existing model if available
     if existing_model:
-        agent.model.load()
-        print("Model weights loaded successfully!\n")
+        loaded_n_games = agent.model.load()
+        if loaded_n_games > 0:
+            # Resume from saved training state
+            agent.n_games = loaded_n_games
+            print(f"Resuming training from game {agent.n_games}")
+            print(f"Current epsilon: {max(10, 100 - agent.n_games)}\n")
+        else:
+            # Old model format or new training
+            print("Model weights loaded successfully!")
+            print("Note: No training progress found. Starting epsilon from 100.\n")
     
     game = SnakeGameAI(display=True)  # Show display during training
     
@@ -704,7 +733,7 @@ def train():
                 # Save model if new record
                 if score > record:
                     record = score
-                    agent.model.save()
+                    agent.model.save(n_games=agent.n_games)
                     
                 # Update statistics
                 scores.append(score)
@@ -718,7 +747,15 @@ def train():
         print("\n\n" + "="*60)
         print("Training interrupted by user")
         print("="*60)
-        print(f"Total games played: {agent.n_games}")
+        
+        # Save current model state before exit
+        print("\nSaving current model state...")
+        agent.model.save('model_checkpoint.pth', n_games=agent.n_games)
+        print(f"Checkpoint saved to model_checkpoint.pth")
+        if record > 0:
+            print(f"Best model (record: {record}) remains in model.pth")
+        
+        print(f"\nTotal games played: {agent.n_games}")
         print(f"Best score: {record}")
         print(f"Final mean score: {mean_score:.2f}")
         if len(scores) >= 10:

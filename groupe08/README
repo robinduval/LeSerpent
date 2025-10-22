@@ -1,1 +1,25 @@
-C'est ici que tu mets la timeline
+Algo : 
+- 19h30 : Titouan donne son username github a Robin
+- 19h50 : Implementation d'un algo DFS
+- 19h52 : Implementation d'un algo BFS
+- 20h00 : BFS fonctionne correctement
+- 20h08 : Ajout d'une direction de secours si BFS echoue
+
+scrore : 75
+
+IA : 
+- 19h30 : Marie -> Instalation des librairies necessaires
+- 19h50 : Marie -> Creation de la structure de l'IA
+- 20h08 : le lancement de l'entrainement de l'IA fonctionne
+- 20h30 : Titouan est pas convaincu ->  Instalation des librairies necessaires 
+- 20h45 : Titouan -> Creation de la structure de l'IA
+- 20h45 : Marie -> Sauvegarde de l'entrainement de l'IA
+- 21h00 : Titouan -> Abandon de l'IA, trop compliqué a implementer en si peu de temps
+- 21h05 : On garde le code de Marie
+
+score : 38
+
+Humain : 
+- 21h07 : Titouan lance le jeu en mode humain
+
+score : 7

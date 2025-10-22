@@ -1,6 +1,3 @@
-AISSI Anne-Laure 
-CHENG Hao-Yu
-
 [algo] 19h30 → Initialisation du projet et teste du code de base du Snake.
 [algo] 19h45 → Implémentation d’un algorithme BFS (plus court chemin).
 [algo] 19h55 → Le BFS fonctionne correctement, le serpent se déplace bien vers la pomme => premier score : 17
@@ -16,4 +13,4 @@ CHENG Hao-Yu
 [ia]20:30: entrainement du modèle, une best score de 46 atteint en 150 episodes 
 [ia]21:00: amélioration des modele, mais ca a pas marché.
 
-[Mano] 21h07 -> score 37
+[Mano] 21h07 -> score 
