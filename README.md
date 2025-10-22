@@ -27,15 +27,15 @@ Le classique jeu du **Serpent** (`Snake`) réimplémenté en Python. Ce dépôt 
 ```
 
 Le dépôt est organisé pour la gestion de 25 groupes de travail.
-- serpent.py,🎮 Jeu de Base. Contient le jeu de Serpent fonctionnel avec tous les mécanismes et le visuel attendus. C'est le point de départ pour toutes les implémentations.
-- groupe01/ à groupe25/,📂 Répertoires de Groupe. Chaque dossier est dédié à un groupe pour le dépôt des livrables.
--- groupeXX/README,C'est ici que tu mets la timeline
--- groupeXX/AUTHORS,NOM Prénom login
--- groupeXX/snake-algo.py
--- groupeXX/snake-ia.py
+- **`serpent.py`** : 🎮 Jeu de Base. Contient le jeu de Serpent fonctionnel avec tous les mécanismes et le visuel attendus. C'est le point de départ pour toutes les implémentations.
+- **`groupe01/` à `groupe25/`** : 📂 Répertoires de Groupe. Chaque dossier est dédié à un groupe pour le dépôt des livrables et contient :
+    - **`groupeXX/README`** : C'est ici que tu mets la timeline
+    - **`groupeXX/AUTHORS`** : NOM Prénom login
+    - **`groupeXX/snake-algo.py`** : Version du jeu exploitant un algorithme de recherche.
+    - **`groupeXX/snake-ia.py`** : Version du jeu exploitant l'Apprentissage par Renforcement (RL).
 
 1. Version Algorithmique Avancée (snake-algo.py)
-2. 
+
 Ce fichier doit contenir une version du jeu de Serpent pilotée par un algorithme déterministe (ex: A*, Dijkstra, BFS, DFS) visant à optimiser la survie ou le score.
 ```text
     ┌──────────────────────┐
