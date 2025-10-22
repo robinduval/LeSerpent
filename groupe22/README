@@ -1,1 +1,16 @@
-C'est ici que tu mets la timeline
+IA:
+
+20 première minutes: Réparation de python sur MacOS
+10 min Implémentation d’un agent RL tabulaire (Q-learning)
+5 min Ajout d’un agent DQN (PyTorch)
+5 min Lancement d’un long entraînement DQN (50000 episodes !!!)
+10 min Création d’un wrapper prof-friendly
+3 min Nettoyage / suppression de fichiers non-essentiels
+
+Algo :
+20 min – Implémentation d’un agent A* “tail-aware” (heuristique Manhattan torique)
+10 min – Ajout d’une vérification de sécurité via BFS (reachable tail check)
+5 min – Intégration d’un fallback A* vers la queue en cas de blocage
+5 min – Ajout d’un mode Hamiltonien serpentin (chemin sûr par défaut)
+5 min – Nettoyage du code et ajustement des priorités de décision
+2 min – Tests rapides en mode headless et ajustement de la vitesse GUI
