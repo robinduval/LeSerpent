@@ -1,1 +1,14 @@
-C'est ici que tu mets la timeline
+### Timeline - 1H30
+
+- **Step 1, 19h30-19h40 :** Récupération du repo et compréhension du sujet  
+- **Step 2, 19h40-19h45 :** Réussir à lancer le projet  
+  - Test du jeu  
+  - **Problèmes rencontrés :** Pour l’instant, le serpent ne peut pas perdre (lorsqu’il touche les bords)  
+- **Step 3, 19h50 :** Première version de l’IA, mais elle a recodé tout le jeu  
+- **Step 4, 20h00 :** Ajout des données récoltées précédemment pour que l’IA se serve des parties d’avant pour s’améliorer,  
+  avec un mode *headless* pour l’apprentissage (sans visualisation) et un mode normal  
+- **Step 5, 20h10 :** Début de la recherche de l’algo  
+- **Step 6, 20h18 :** Premier essai avec l’algo de **stratégie du cycle hamiltonien**, pas si bon  
+- **Step 7, 20h25 :** Comparatifs de tous les algos pour pouvoir choisir le meilleur  
+- **Step 8, 20h40 :** Génération de diagrammes de comparaison des méthodes  
+- **Step 9, 20h50 :** Préparation du rendu 
