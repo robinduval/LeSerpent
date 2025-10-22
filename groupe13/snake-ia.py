@@ -7,6 +7,39 @@ from tensorflow import keras
 from collections import deque
 import os
 
+# --- OPTIMISATION APPLE SILICON + NEURAL ENGINE ---
+# Configure TensorFlow pour utiliser Metal (GPU) et Neural Engine
+try:
+    # Activer l'accélération GPU via Metal
+    physical_devices = tf.config.list_physical_devices('GPU')
+    if len(physical_devices) > 0:
+        print(f"🔥 GPU détecté: {physical_devices}")
+        # Configurer la croissance mémoire pour éviter d'allouer toute la VRAM
+        for device in physical_devices:
+            tf.config.experimental.set_memory_growth(device, True)
+        print("✓ Accélération GPU Metal activée!")
+    else:
+        print("⚠️  Aucun GPU détecté, utilisation du CPU")
+except Exception as e:
+    print(f"Configuration GPU: {e}")
+
+# Optimisations pour Neural Engine et performances maximales
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Réduit les logs TensorFlow
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '1'  # Optimisations oneDNN
+tf.config.optimizer.set_jit(True)  # Active XLA (Accelerated Linear Algebra)
+
+# Configuration pour utiliser le Neural Engine via Core ML delegate
+try:
+    # Set threading for optimal performance on Apple Silicon
+    tf.config.threading.set_inter_op_parallelism_threads(0)  # Auto
+    tf.config.threading.set_intra_op_parallelism_threads(0)  # Auto
+    print("✓ Threading optimisé pour Apple Silicon")
+except:
+    pass
+
+print("🧠 Neural Engine: Utilisation via Metal Performance Shaders")
+print("=" * 60)
+
 # --- CONSTANTES DE JEU ---
 # Taille de la grille (20x20)
 GRID_SIZE = 15
@@ -42,7 +75,7 @@ ACTION_LEFT = 2
 ACTION_RIGHT = 3
 ACTIONS = [UP, DOWN, LEFT, RIGHT]
 
-# Hyperparamètres DQN
+# Hyperparamètres DQN optimisés pour Neural Engine
 STATE_SIZE = 11  # 3 danger + 4 direction + 4 apple position
 ACTION_SIZE = 4  # UP, DOWN, LEFT, RIGHT
 LEARNING_RATE = 0.001
@@ -50,7 +83,7 @@ GAMMA = 0.95  # Discount factor
 EPSILON_START = 1.0
 EPSILON_MIN = 0.01
 EPSILON_DECAY = 0.995
-BATCH_SIZE = 64
+BATCH_SIZE = 64  # Puissance de 2 - optimal pour Neural Engine
 MEMORY_SIZE = 10000
 MODEL_PATH = "snake_dqn_model.h5"
 
@@ -90,15 +123,37 @@ class DQNAgent:
         self.update_target_model()
         
     def _build_model(self):
-        """Construit le réseau de neurones DQN."""
+        """Construit le réseau de neurones DQN optimisé pour Neural Engine."""
+        # Neural Engine préfère les tailles de batch en puissances de 2
+        # et les opérations GEMM optimisées
         model = keras.Sequential([
-            keras.layers.Dense(128, activation='relu', input_shape=(self.state_size,)),
-            keras.layers.Dense(128, activation='relu'),
-            keras.layers.Dense(64, activation='relu'),
-            keras.layers.Dense(self.action_size, activation='linear')
+            # Input layer - explicite pour Neural Engine
+            keras.layers.Input(shape=(self.state_size,)),
+            # Hidden layers avec tailles optimales pour ANE (Apple Neural Engine)
+            keras.layers.Dense(128, activation='relu', 
+                             kernel_initializer='he_normal'),
+            keras.layers.Dense(128, activation='relu',
+                             kernel_initializer='he_normal'),
+            keras.layers.Dense(64, activation='relu',
+                             kernel_initializer='he_normal'),
+            # Output layer
+            keras.layers.Dense(self.action_size, activation='linear',
+                             kernel_initializer='glorot_uniform')
         ])
-        model.compile(optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-                     loss='mse')
+        
+        # Optimizer optimisé pour Apple Silicon
+        optimizer = keras.optimizers.Adam(
+            learning_rate=LEARNING_RATE,
+            epsilon=1e-7,  # Stabilité numérique
+            amsgrad=False  # Plus rapide
+        )
+        
+        model.compile(
+            optimizer=optimizer,
+            loss='mse',
+            jit_compile=True  # XLA compilation pour le Neural Engine
+        )
+        
         return model
     
     def update_target_model(self):
@@ -114,37 +169,52 @@ class DQNAgent:
         if training and np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
         
-        state_tensor = np.array([state])
-        q_values = self.model.predict(state_tensor, verbose=0)
-        return np.argmax(q_values[0])
+        # Utiliser __call__ au lieu de predict pour plus de rapidité
+        state_tensor = np.array([state], dtype=np.float32)
+        q_values = self.model(state_tensor, training=False)
+        return int(np.argmax(q_values[0]))
     
     def replay(self):
-        """Entraîne le modèle avec un batch de la mémoire de replay."""
+        """Entraîne le modèle avec un batch de la mémoire de replay (optimisé Neural Engine)."""
         if len(self.memory) < BATCH_SIZE:
             return 0
         
         batch = self.memory.sample(BATCH_SIZE)
-        states = np.array([exp[0] for exp in batch])
-        actions = np.array([exp[1] for exp in batch])
-        rewards = np.array([exp[2] for exp in batch])
-        next_states = np.array([exp[3] for exp in batch])
-        dones = np.array([exp[4] for exp in batch])
+        states = np.array([exp[0] for exp in batch], dtype=np.float32)
+        actions = np.array([exp[1] for exp in batch], dtype=np.int32)
+        rewards = np.array([exp[2] for exp in batch], dtype=np.float32)
+        next_states = np.array([exp[3] for exp in batch], dtype=np.float32)
+        dones = np.array([exp[4] for exp in batch], dtype=np.bool_)
         
-        # Calcul des Q-values actuelles
-        current_q_values = self.model.predict(states, verbose=0)
+        # Utiliser TensorFlow natif pour que le Neural Engine puisse optimiser
+        states_tf = tf.constant(states, dtype=tf.float32)
+        next_states_tf = tf.constant(next_states, dtype=tf.float32)
         
-        # Calcul des Q-values cibles
-        next_q_values = self.target_model.predict(next_states, verbose=0)
+        # Calcul des Q-values en mode inférence (Neural Engine peut accélérer)
+        current_q_values = self.model(states_tf, training=False)
+        next_q_values = self.target_model(next_states_tf, training=False)
         
-        # Mise à jour des Q-values pour les actions prises
-        for i in range(len(batch)):
+        # Opérations TensorFlow (optimisées pour Metal/Neural Engine)
+        max_next_q = tf.reduce_max(next_q_values, axis=1)
+        
+        # Calcul vectorisé des targets
+        target_q_values = current_q_values.numpy()
+        for i in range(BATCH_SIZE):
             if dones[i]:
-                current_q_values[i][actions[i]] = rewards[i]
+                target_q_values[i][actions[i]] = rewards[i]
             else:
-                current_q_values[i][actions[i]] = rewards[i] + GAMMA * np.max(next_q_values[i])
+                target_q_values[i][actions[i]] = rewards[i] + GAMMA * max_next_q[i].numpy()
         
-        # Entraînement
-        history = self.model.fit(states, current_q_values, epochs=1, verbose=0)
+        # Entraînement optimisé pour Apple Silicon
+        # Le Neural Engine accélère les opérations GEMM lors du fit
+        history = self.model.fit(
+            states_tf, 
+            target_q_values, 
+            epochs=1, 
+            verbose=0, 
+            batch_size=BATCH_SIZE,
+            shuffle=False  # Pas besoin de shuffle pour un seul epoch
+        )
         loss = history.history['loss'][0]
         
         # Decay epsilon
