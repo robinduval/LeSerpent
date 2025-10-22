@@ -2,6 +2,7 @@ import pygame
 import random
 import time
 import numpy as np
+import sys
 
 # --- CONSTANTES DE JEU ---
 # Taille de la grille (20x20)
@@ -30,6 +31,148 @@ UP = (0, -1)
 DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
+DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
+
+# --- ENVIRONNEMENT RL POUR SNAKE ---
+
+class SnakeEnv:
+    def __init__(self, render_mode=False):
+        self.render_mode = render_mode
+        self.reset()
+        if render_mode:
+            pygame.init()
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+            pygame.display.set_caption("Snake RL")
+            self.font = pygame.font.Font(None, 40)
+            self.clock = pygame.time.Clock()
+
+    def reset(self):
+        self.snake = Snake()
+        self.apple = Apple(self.snake.body)
+        self.done = False
+        self.reward = 0
+        self.steps = 0
+        return self.get_state()
+
+    def get_state(self):
+        # Etat simplifié : position relative de la pomme, direction, danger devant/gauche/droite
+        head = self.snake.head_pos
+        apple = self.apple.position
+        dir_idx = DIRECTIONS.index(self.snake.direction)
+        # Danger dans chaque direction (avant, gauche, droite)
+        danger = [
+            self._danger(self.snake.direction),  # avant
+            self._danger(self._turn_left(self.snake.direction)),
+            self._danger(self._turn_right(self.snake.direction))
+        ]
+        # Position relative de la pomme
+        apple_dir = [
+            int(apple[0] < head[0]), int(apple[0] > head[0]),
+            int(apple[1] < head[1]), int(apple[1] > head[1])
+        ]
+        state = tuple(danger + apple_dir + [dir_idx])
+        return state
+
+    def _danger(self, direction):
+        x = (self.snake.head_pos[0] + direction[0])
+        y = (self.snake.head_pos[1] + direction[1])
+        if x < 0 or x >= GRID_SIZE or y < 0 or y >= GRID_SIZE:
+            return 1
+        if [x, y] in self.snake.body:
+            return 1
+        return 0
+
+    def _turn_left(self, direction):
+        if direction == UP: return LEFT
+        if direction == LEFT: return DOWN
+        if direction == DOWN: return RIGHT
+        if direction == RIGHT: return UP
+
+    def _turn_right(self, direction):
+        if direction == UP: return RIGHT
+        if direction == RIGHT: return DOWN
+        if direction == DOWN: return LEFT
+        if direction == LEFT: return UP
+
+    def step(self, action):
+        # action: 0 = tout droit, 1 = gauche, 2 = droite
+        dir_now = self.snake.direction
+        if action == 1:
+            new_dir = self._turn_left(dir_now)
+        elif action == 2:
+            new_dir = self._turn_right(dir_now)
+        else:
+            new_dir = dir_now
+        self.snake.set_direction(new_dir)
+        self.snake.move()
+        self.steps += 1
+
+        reward = 0
+        done = False
+
+        if self.snake.check_self_collision() or self.snake.check_wall_collision():
+            reward = -10
+            done = True
+        elif self.snake.head_pos == list(self.apple.position):
+            self.snake.grow()
+            reward = 10
+            if not self.apple.relocate(self.snake.body):
+                done = True # Victoire
+        else:
+            reward = -0.1 # pénalité pour chaque pas
+
+        self.done = done
+        self.reward = reward
+        return self.get_state(), reward, done
+
+    def render(self):
+        if not self.render_mode:
+            return
+        self.screen.fill(GRIS_FOND)
+        game_area_rect = pygame.Rect(0, SCORE_PANEL_HEIGHT, SCREEN_WIDTH, SCREEN_WIDTH)
+        pygame.draw.rect(self.screen, NOIR, game_area_rect)
+        draw_grid(self.screen)
+        self.apple.draw(self.screen)
+        self.snake.draw(self.screen)
+        display_info(self.screen, self.font, self.snake, 0)
+        pygame.display.flip()
+        self.clock.tick(15)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+# --- AGENT RL (Q-learning tabulaire simple) ---
+
+class QAgent:
+    def __init__(self, state_size, action_size, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_min=0.05, epsilon_decay=0.995):
+        self.q = {}
+        self.state_size = state_size
+        self.action_size = action_size
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+
+    def get_qs(self, state):
+        if state not in self.q:
+            self.q[state] = np.zeros(self.action_size)
+        return self.q[state]
+
+    def act(self, state):
+        if np.random.rand() < self.epsilon:
+            return np.random.randint(self.action_size)
+        qs = self.get_qs(state)
+        return np.argmax(qs)
+
+    def learn(self, state, action, reward, next_state, done):
+        qs = self.get_qs(state)
+        next_qs = self.get_qs(next_state)
+        target = reward + (self.gamma * np.max(next_qs) * (not done))
+        qs[action] += self.alpha * (target - qs[action])
+        if done:
+            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
 # --- CLASSES DU JEU ---
 
@@ -300,133 +443,55 @@ def main():
 
     pygame.quit()
 
-class SnakeEnv:
-    """
-    Environnement Snake pour RL (interface simplifiée).
-    Etat : position tête, direction, position pomme, positions obstacles proches.
-    Actions : 0=UP, 1=DOWN, 2=LEFT, 3=RIGHT
-    """
-    ACTIONS = [UP, DOWN, LEFT, RIGHT]
+# --- ENTRAÎNEMENT ET JEU AVEC AGENT RL ---
 
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.snake = Snake()
-        self.apple = Apple(self.snake.body)
-        self.done = False
-        self.steps = 0
-        return self.get_state()
-
-    def get_state(self):
-        # Etat simple : position tête, direction, position pomme
-        head = self.snake.head_pos
-        apple = self.apple.position
-        direction = self.snake.direction
-        # On encode direction comme un index
-        dir_idx = self.ACTIONS.index(direction)
-        # Etat = (x_tête, y_tête, x_pomme, y_pomme, dir_idx)
-        return (head[0], head[1], apple[0], apple[1], dir_idx)
-
-    def step(self, action):
-        if self.done:
-            return self.get_state(), 0, True, {}
-
-        # Appliquer l'action
-        self.snake.set_direction(self.ACTIONS[action])
-        self.snake.move()
-        self.steps += 1
-
-        reward = -0.01  # Petite pénalité pour chaque pas
-        done = False
-
-        if self.snake.is_game_over():
-            reward = -1
-            done = True
-        elif self.snake.head_pos == list(self.apple.position):
-            self.snake.grow()
-            reward = 1
-            if not self.apple.relocate(self.snake.body):
-                done = True  # Victoire
-        self.done = done
-        return self.get_state(), reward, done, {}
-
-    def render(self, surface=None):
-        # Affichage facultatif pour RL : on peut réutiliser le code pygame
-        if surface is not None:
-            # ...utiliser le code de dessin existant...
-            pass
-
-# --- Q-Learning Tabulaire pour SnakeEnv ---
-
-def train_q_learning(episodes=5000, max_steps=200):
-    env = SnakeEnv()
-    q_table = {}
-    alpha = 0.1
-    gamma = 0.9
-    epsilon = 1.0
-    epsilon_decay = 0.995
-    epsilon_min = 0.05
-
-    def get_q(state, action):
-        return q_table.get((state, action), 0.0)
-
+def train_rl(episodes=500, render_every=0):
+    env = SnakeEnv(render_mode=(render_every > 0))
+    agent = QAgent(state_size=8, action_size=3)
+    scores = []
     for ep in range(episodes):
         state = env.reset()
         total_reward = 0
-        for step in range(max_steps):
-            # Epsilon-greedy
-            if np.random.rand() < epsilon:
-                action = np.random.choice(4)
-            else:
-                qs = [get_q(state, a) for a in range(4)]
-                action = int(np.argmax(qs))
-            next_state, reward, done, _ = env.step(action)
-            total_reward += reward
-            # Q-learning update
-            best_next = max([get_q(next_state, a) for a in range(4)])
-            old_q = get_q(state, action)
-            q_table[(state, action)] = old_q + alpha * (reward + gamma * best_next - old_q)
+        steps = 0
+        while True:
+            if render_every and ep % render_every == 0:
+                env.render()
+            action = agent.act(state)
+            next_state, reward, done = env.step(action)
+            agent.learn(state, action, reward, next_state, done)
             state = next_state
+            total_reward += reward
+            steps += 1
             if done:
                 break
-        epsilon = max(epsilon * epsilon_decay, epsilon_min)
-        if (ep+1) % 500 == 0:
-            print(f"Episode {ep+1}/{episodes} - Reward: {total_reward:.2f} - Epsilon: {epsilon:.3f}")
-    print("Entraînement terminé.")
-    return q_table
+        scores.append(total_reward)
+        if (ep+1) % 50 == 0:
+            print(f"Episode {ep+1}/{episodes} - Score: {env.snake.score} - Epsilon: {agent.epsilon:.2f}")
+    print("Training finished.")
+    return agent, scores
 
-def play_with_q_table(q_table, max_steps=500):
-    env = SnakeEnv()
-    state = env.reset()
-    total_reward = 0
-    for _ in range(max_steps):
-        qs = [q_table.get((state, a), 0.0) for a in range(4)]
-        action = int(np.argmax(qs))
-        state, reward, done, _ = env.step(action)
-        total_reward += reward
-        if done:
-            break
-    print(f"Score RL: {env.snake.score}, Longueur: {len(env.snake.body)}, Reward total: {total_reward:.2f}")
-
-# --- Menu pour choisir la version ---
-
-def menu():
-    print("1. Jouer (mode classique)")
-    print("2. Entraîner RL (Q-learning)")
-    print("3. Jouer avec RL (Q-table)")
-    choix = input("Choix : ")
-    if choix == "1":
-        main()
-    elif choix == "2":
-        q_table = train_q_learning()
-        # Sauvegarde possible ici
-    elif choix == "3":
-        # Pour la démo, on entraîne puis on joue
-        q_table = train_q_learning(episodes=2000)
-        play_with_q_table(q_table)
-    else:
-        print("Choix invalide.")
+def play_with_agent(agent, episodes=5):
+    env = SnakeEnv(render_mode=True)
+    for ep in range(episodes):
+        state = env.reset()
+        start_time = time.time()
+        while True:
+            env.render()
+            action = np.argmax(agent.get_qs(state))
+            next_state, reward, done = env.step(action)
+            state = next_state
+            if done:
+                elapsed_time = time.time() - start_time
+                minutes = int(elapsed_time // 60)
+                seconds = int(elapsed_time % 60)
+                max_cells = GRID_SIZE * GRID_SIZE
+                fill_rate = (len(env.snake.body) / max_cells) * 100
+                print(f"Partie {ep+1}: Score final = {env.snake.score}, Temps = {minutes:02d}:{seconds:02d}, Remplissage = {fill_rate:.1f}%")
+                time.sleep(1)
+                break
 
 if __name__ == '__main__':
-    menu()
+    # Pour entraîner l'agent RL :
+    agent, scores = train_rl(episodes=500, render_every=0) # Mettre render_every=10 pour voir l'apprentissage
+    # Pour jouer avec l'agent entraîné :
+    play_with_agent(agent, episodes=3)
