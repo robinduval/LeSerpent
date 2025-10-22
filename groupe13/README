@@ -1,1 +1,10 @@
-C'est ici que tu mets la timeline
+19h30 -> Setup du projet 
+19h31 -> [ALGO&IA] Premier prompt 
+19h35 -> [ALGO] Premier résultat algo avec Dijstra (Il se tue au bout d'un moment)'
+19h50 -> [ALGO] Deuxième résultat algo avec A* (Il se tue au bout d'un moment)
+20h05 -> [ALGO] Modif de l'algo pour avoir un mode où il suit sa queue jusqu'à trouver une pomme en cas de blocage
+20h06 -> [IA] On a demandé trop de truc futile au LLM du coup il fait TB
+20h10 -> [IA] Premier trainig visuel avec IA (à priori c'est plus long de setup l'algo IA)
+20h20 -> [IA] Ça traîne toujours. (On commence à avoir des résultats IA avec des scores > 10)
+20h30 -> On refait tout en pytorch au lieu de tensorflow (le prof nous a mis la pression)
+20h40 -> [ALGO] Éclair de génie - on le lance plein de fois et on affiche le meilleur score
