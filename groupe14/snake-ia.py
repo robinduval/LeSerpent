@@ -1,6 +1,7 @@
 import pygame
 import random
 import time
+import numpy as np
 
 # --- CONSTANTES DE JEU ---
 # Taille de la grille (20x20)
@@ -299,5 +300,133 @@ def main():
 
     pygame.quit()
 
+class SnakeEnv:
+    """
+    Environnement Snake pour RL (interface simplifiée).
+    Etat : position tête, direction, position pomme, positions obstacles proches.
+    Actions : 0=UP, 1=DOWN, 2=LEFT, 3=RIGHT
+    """
+    ACTIONS = [UP, DOWN, LEFT, RIGHT]
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.snake = Snake()
+        self.apple = Apple(self.snake.body)
+        self.done = False
+        self.steps = 0
+        return self.get_state()
+
+    def get_state(self):
+        # Etat simple : position tête, direction, position pomme
+        head = self.snake.head_pos
+        apple = self.apple.position
+        direction = self.snake.direction
+        # On encode direction comme un index
+        dir_idx = self.ACTIONS.index(direction)
+        # Etat = (x_tête, y_tête, x_pomme, y_pomme, dir_idx)
+        return (head[0], head[1], apple[0], apple[1], dir_idx)
+
+    def step(self, action):
+        if self.done:
+            return self.get_state(), 0, True, {}
+
+        # Appliquer l'action
+        self.snake.set_direction(self.ACTIONS[action])
+        self.snake.move()
+        self.steps += 1
+
+        reward = -0.01  # Petite pénalité pour chaque pas
+        done = False
+
+        if self.snake.is_game_over():
+            reward = -1
+            done = True
+        elif self.snake.head_pos == list(self.apple.position):
+            self.snake.grow()
+            reward = 1
+            if not self.apple.relocate(self.snake.body):
+                done = True  # Victoire
+        self.done = done
+        return self.get_state(), reward, done, {}
+
+    def render(self, surface=None):
+        # Affichage facultatif pour RL : on peut réutiliser le code pygame
+        if surface is not None:
+            # ...utiliser le code de dessin existant...
+            pass
+
+# --- Q-Learning Tabulaire pour SnakeEnv ---
+
+def train_q_learning(episodes=5000, max_steps=200):
+    env = SnakeEnv()
+    q_table = {}
+    alpha = 0.1
+    gamma = 0.9
+    epsilon = 1.0
+    epsilon_decay = 0.995
+    epsilon_min = 0.05
+
+    def get_q(state, action):
+        return q_table.get((state, action), 0.0)
+
+    for ep in range(episodes):
+        state = env.reset()
+        total_reward = 0
+        for step in range(max_steps):
+            # Epsilon-greedy
+            if np.random.rand() < epsilon:
+                action = np.random.choice(4)
+            else:
+                qs = [get_q(state, a) for a in range(4)]
+                action = int(np.argmax(qs))
+            next_state, reward, done, _ = env.step(action)
+            total_reward += reward
+            # Q-learning update
+            best_next = max([get_q(next_state, a) for a in range(4)])
+            old_q = get_q(state, action)
+            q_table[(state, action)] = old_q + alpha * (reward + gamma * best_next - old_q)
+            state = next_state
+            if done:
+                break
+        epsilon = max(epsilon * epsilon_decay, epsilon_min)
+        if (ep+1) % 500 == 0:
+            print(f"Episode {ep+1}/{episodes} - Reward: {total_reward:.2f} - Epsilon: {epsilon:.3f}")
+    print("Entraînement terminé.")
+    return q_table
+
+def play_with_q_table(q_table, max_steps=500):
+    env = SnakeEnv()
+    state = env.reset()
+    total_reward = 0
+    for _ in range(max_steps):
+        qs = [q_table.get((state, a), 0.0) for a in range(4)]
+        action = int(np.argmax(qs))
+        state, reward, done, _ = env.step(action)
+        total_reward += reward
+        if done:
+            break
+    print(f"Score RL: {env.snake.score}, Longueur: {len(env.snake.body)}, Reward total: {total_reward:.2f}")
+
+# --- Menu pour choisir la version ---
+
+def menu():
+    print("1. Jouer (mode classique)")
+    print("2. Entraîner RL (Q-learning)")
+    print("3. Jouer avec RL (Q-table)")
+    choix = input("Choix : ")
+    if choix == "1":
+        main()
+    elif choix == "2":
+        q_table = train_q_learning()
+        # Sauvegarde possible ici
+    elif choix == "3":
+        # Pour la démo, on entraîne puis on joue
+        q_table = train_q_learning(episodes=2000)
+        play_with_q_table(q_table)
+    else:
+        print("Choix invalide.")
+
 if __name__ == '__main__':
-    main()
+    menu()
