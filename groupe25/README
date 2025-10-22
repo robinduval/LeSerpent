@@ -1,1 +1,12 @@
 C'est ici que tu mets la timeline
+
+19:43 - debut du code
+20:00 - fin de la version algo (plus de problème a installer python qu'a coder)
+20:16 - debut entrainement IA
+    diffculté : mettre cuda
+    configurer vanv
+20:24 - record algo 128
+20:39 - record 41 points en 200 parties
+20:44 - recherche pour paralleliser entrainement
+20:52 - entrainement 100 parties par 100 parties
+21:06 - record ia 55 points
