@@ -46,6 +46,8 @@ GAMMA = 0.95  # Discount factor
 EPSILON_START = 1.0
 EPSILON_MIN = 0.01
 EPSILON_DECAY = 0.990
+EPSILON_RESET_INTERVAL = 500  # Réinitialise epsilon tous les X épisodes si performance stagne
+EPSILON_RESET_VALUE = 0.3  # Valeur de réinitialisation (permet re-exploration)
 MEMORY_SIZE = 50000
 BATCH_SIZE = 64
 MODEL_PATH = "snake_dqn_model.pth"
@@ -115,6 +117,9 @@ class DQNAgent:
         
         self.optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
         self.criterion = nn.MSELoss()
+        
+        # Learning rate scheduler pour ajustement automatique
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=1000, gamma=0.95)
         
         self.memory = ReplayMemory(MEMORY_SIZE)
         self.epsilon = EPSILON_START
@@ -493,9 +498,9 @@ def get_reward(snake, apple, prev_score, game_over, victory):
     Calcule la récompense selon les contraintes spécifiées.
     
     Récompenses:
-    - Manger une pomme: +10 (encourage l'objectif principal)
+    - Manger une pomme: +40 (encourage l'objectif principal)
     - Victoire (grille remplie): +100 (bonus exceptionnel)  
-    - Collision/Mort: -10 (pénalité modérée)
+    - Collision/Mort: -60 (pénalité forte pour éviter les morts prématurées)
     - Mouvement normal: -1 (encourage l'efficacité et évite les boucles infinies)
     """
     reward = -1  # Pénalité de mouvement pour encourager l'efficacité
@@ -504,10 +509,11 @@ def get_reward(snake, apple, prev_score, game_over, victory):
         if victory:
             reward = 100  # Victoire exceptionnelle
         else:
-            reward = -30  # Pénalité de collision
+            reward = -60  # Pénalité de collision forte
     elif snake.score > prev_score:
         reward = 40  # Pomme mangée
     
+    return reward
     return reward
 
 def train(render=True):
@@ -552,6 +558,7 @@ def train(render=True):
         episode_reward = 0
         episode_loss = []
         steps = 0
+        steps_since_last_apple = 0  # Compteur pour le timeout
         
         # Démarrage du chronomètre
         start_time = time.time()
@@ -581,7 +588,12 @@ def train(render=True):
             # Effectuer le mouvement
             snake.move()
             steps += 1
+            steps_since_last_apple += 1
             agent.total_steps += 1
+            
+            # Vérifier timeout pour les 50 premières pommes
+            if snake.score < 50 and steps_since_last_apple > 100:
+                game_over = True
             
             # Vérifier les collisions
             if snake.is_game_over():
@@ -591,6 +603,7 @@ def train(render=True):
             if snake.head_pos == list(apple.position):
                 prev_score = snake.score
                 snake.grow()
+                steps_since_last_apple = 0  # Réinitialiser le compteur
                 
                 # Tente de replacer la pomme
                 if not apple.relocate(snake.body):
@@ -666,9 +679,20 @@ def train(render=True):
         # Décrémenter epsilon
         agent.decay_epsilon()
         
+        # Réinitialisation périodique d'epsilon si performance stagne
+        if episode > 0 and episode % EPSILON_RESET_INTERVAL == 0:
+            recent_avg = np.mean(list(agent.scores)[-100:]) if len(agent.scores) >= 100 else avg_score
+            if recent_avg < 10:  # Si score moyen toujours faible
+                old_epsilon = agent.epsilon
+                agent.epsilon = max(agent.epsilon, EPSILON_RESET_VALUE)
+                if agent.epsilon > old_epsilon:
+                    print(f"🔄 EPSILON RESET: {old_epsilon:.3f} → {agent.epsilon:.3f} (performance stagnante, re-exploration)")
+        
         # Mettre à jour le réseau cible périodiquement
         if episode % 10 == 0:
             agent.update_target_model()
+            # Appliquer le scheduler de learning rate
+            agent.scheduler.step()
         
         # Sauvegarder le modèle périodiquement
         if episode % 50 == 0:
