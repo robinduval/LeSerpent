@@ -1,1 +1,18 @@
-C'est ici que tu mets la timeline
+# Timeline
+
+19h35 - Organisation & renseignement sur le Reinforcement Learning & lecture du code
+19h40 - Lancement du prompting & test du jeu
+20h00 - Correction des bugs de l'IA & Début de la recherche d'algo
+20h15 - Lancement de l'entrainement du model
+20h30 - Test des algos
+20h45 - Relance de l'entrainement du model sans les murs
+
+
+Version humaine
+Score : 27 || Temps : 1 min 326
+
+Version algo - Astar
+Score : 48 || Temps : 30 secondes
+
+Version IA
+Score :  || Temps : 
