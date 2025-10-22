@@ -1,1 +1,31 @@
-C'est ici que tu mets la timeline
+- 19h30 : Clone du projet
+- 19h37 : Fin de la lecture des consignes et début de l'analyse du code déjà écrit
+
+- 20h00 : Début du coding après avoir analysé tout ce qu'il y a à faire
+- 20h47 : Meilleur score à la main de Paul : 47
+- 20h54 : Fin de la version IA - Meilleur Score 48
+
+- 20h57 : Début de la version algo
+- 20h58 : Meilleur score de Paul a la main : 49
+- 21h16 : Fin implem algo
+    Scores sur 100 itérations
+        Dijkstra:
+        Score moyen:        50.64
+        Score max:          93
+        Taux de victoire:   0.0%
+        Temps moyen:        0.04s
+        Étapes moyennes:    427
+
+        GBFS:
+        Score moyen:        52.56
+        Score max:          86
+        Taux de victoire:   0.0%
+        Temps moyen:        0.03s
+        Étapes moyennes:    549
+
+        A*:
+        Score moyen:        53.21
+        Score max:          85
+        Taux de victoire:   0.0%
+        Temps moyen:        0.04s
+        Étapes moyennes:    515

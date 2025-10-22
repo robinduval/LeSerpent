@@ -1,1 +1,35 @@
-C'est ici que tu mets la timeline
+
+# Projet LeSerpent — Résultats et timeline
+
+## Timeline
+
+Indique ici les dates et actions du développement :
+
+- 19h30 : Projet initial et brainstorming — définition des règles du jeu.
+- 19h45 : Lecture et compréhension du moteur de base (`serpent.py`) — rendu Pygame, grille et contrôle manuel.
+- 20h: Ajout de l'algorithme de recherche basique (Dijkstra) dans `snake-algo.py`.
+- 20h15 : Implémentation d'un hybride Dijkstra / Greedy Best-First et affichage du chemin.
+- 20h25 : Optimisations (A* list-based, cache de chemin, recompute cooldown) et réglage de la vitesse.
+- 20h30 : Création de l'algorithme d'IA dans snake-ia.py
+- 20h32 : Entrainement de l'IA
+
+## Comparaison des algos
+
+serpent.py (à la main) : 55s = 10pts
+serpent-algo.py : 55s = 13pts
+serpent-ia.py : 55s = 1pt
+
+# Qui a fait le meilleur score ? 
+serpent-algo.py
+
+# Qui a fini le jeu ? 
+personne (IA pas assez entrainée)
+
+# En combien de temps ? 
+NONE
+
+
+# (La courbe ?)
+NONE
+
+

@@ -1,1 +1,10 @@
+<<<<<<< HEAD
 C'est ici que tu mets la timeline
+=======
+19:30: Début de codage snake-algo.py
+20:00: Split snake-algo et snake-ia pour travailler parallèlement
+20:00: Version 1.0 snake-algo.py. Score max: 34; 1min23
+20:40: Version 1.1 snake-algo.py. Score max: 91; Temps infini (boucle)
+21:10: Version 1.0 snake-ia.py.
+21:18: Version 1.1 snake-ia.py. Score max: 19; 0min20
+>>>>>>> 104f986 (grp 18: v1.1 snake-ia)
