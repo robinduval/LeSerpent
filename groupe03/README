@@ -1,1 +1,17 @@
-C'est ici que tu mets la timeline
+Quand avez-vous commencer, quoi ?
+- 19h30 : 
+    - Algorithme : fait en 15 min (marche avec l'algorithme snake de base, donc en traversant les murs), amélioré entre 20h45 et 21h
+    - IA : dès 19h30, recommencé à 20h35 car inefficace, code terminé à 20h50 et entrainement pendant 10 min jusqu'à 21h. Meilleur score durant l'entrainement = 60 (GRID_SIZE = 15)
+- Entre 21h et 21h20 : lancement en boucle de l'IA et l'algorithme pour obtenir le meilleur score possible
+
+Qui a fait le meilleur score ?
+- L'algorithme : 91 en 1min28 sec (GRID_SIZE = 15 et GAME_SPEED = 50)
+- IA : Meilleur score hors entrainement 26 en 27 sec ((GRID_SIZE = 15 et GAME_SPEED = 50)
+
+Qui a fini le jeu ?
+- Aucun, ni algo, ni IA, ni humain
+
+En combien de temps ?
+- Pas de fin de jeu
+
+(La courbe ?)
