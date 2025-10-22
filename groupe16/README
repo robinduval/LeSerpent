@@ -1,1 +1,19 @@
-C'est ici que tu mets la timeline
+AISSI Anne-Laure 
+CHENG Hao-Yu
+
+[algo] 19h30 → Initialisation du projet et teste du code de base du Snake.
+[algo] 19h45 → Implémentation d’un algorithme BFS (plus court chemin).
+[algo] 19h55 → Le BFS fonctionne correctement, le serpent se déplace bien vers la pomme => premier score : 17
+[algo] 20h10 → Ajout d’une gestion des collisions pour éviter que le serpent se morde. => deuxième score : 55
+[algo] 20h20 → Amélioration avec simulation du corps (la queue se déplace).
+[algo] 20h35 → Introduction d’une sécurité “follow-tail” : le serpent va à la pomme uniquement s’il peut encore bouger après. => meilleur score : 94
+[algo] 21h10 → Dernière optimisation : sélection du mouvement le plus sûr quand aucun chemin n’est viable.
+
+[ia]19:30: Lecture du sujet et installation des librairies (torch, numpy, pygame)
+[ia]19:35: lecture du code existant (snake-ia.py et serpent.py)
+[ia]19:50: manque du torch, donc installation de torch
+[ia]20:00: donne contexte de jeu et demande à chatgpt comment implémenter la visualisation pygame
+[ia]20:30: entrainement du modèle, une best score de 46 atteint en 150 episodes 
+[ia]21:00: amélioration des modele, mais ca a pas marché.
+
+[Mano] 21h07 -> score 37
