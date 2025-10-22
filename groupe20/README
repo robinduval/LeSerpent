@@ -1,1 +1,22 @@
 C'est ici que tu mets la timeline
+
+début du dev version algo à 19h51
+implémentation de l'algorithme A* avec optimisations:
+- Validation simple : vérifie juste que la prochaine case n'est pas dans le corps
+- Si pas de chemin direct, suit la queue pour survivre
+- En dernier recours, choisit l'espace le plus ouvert
+
+1er score: 61
+2eme score: 57
+
+Nouvel algo: Hamilton
+score théorique 100% mais trop long (78 points à 10 min)
+
+Nouvelle solution hybride:
+- phase 1 : algo A* 0-25%* (~56 pommes)
+- Phase 2 (Transition) : 25-30% (~56-67 pommes)
+- Phase 3 : cycle Hamiltonien 30%+ (~67-225 pommes)
+
+=> accélère fortement tout en gardant une bonne chance d'atteindre 100% de survie (risque de game over pendant la transition A* -> Hamilton)
+
+meilleur score: 224 en 8:02 min
