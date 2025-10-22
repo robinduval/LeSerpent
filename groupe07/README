@@ -1,1 +1,19 @@
-C'est ici que tu mets la timeline
+Timeline:
+Algo:
+Début : Test de l'algo DFS combine avec des cycles d'hamilton 
+20mn après des ajustements:  on se rend compte que le choix de passage entre les deux stratégies est complexe.
+30mn : ajout de traits bleus pour voir les paths
+
+Ajout du fait de suivre la queue lorsque la pomme est bloqué: max 178
+
+IA:
+Début : Mise en place algorithme génétique avec réseau de neurones (11 inputs → 16 → 16 → 3 outputs)
+10mn : Population de 1000 agents → trop lent (2-3h estimées)
+15mn : Réduction à 50 agents, amélioration des rewards (+5000/pomme)
+20mn : Problème : serpent bouge en ligne et fait haut-bas-haut-bas en boucle
+30mn : Ajout pénalités anti-oscillation (-15/move, -10 par move gaspillé)
+40mn : Correction : tracking du meilleur agent global de toutes les générations
+?? : Générations augmentées : 100 → 300 → 500 pour apprentissage massif et fix des rewards (trop sévère donc peu d'évolution)
+-> amélioration des micro paramètres et des rewards pour une meilleure évolution
+
+Final : 200 agents × 500 générations = 100,000 parties jouées
