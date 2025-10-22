@@ -1,1 +1,73 @@
-NOM Prénom login
+# GROUPE 17 - Snake RL Project
+
+## Membres de l'équipe
+
+PROST Erwan - erwan.prost
+AFONSO Kevin - kevin.afonso
+
+## Contributions
+
+### Livrable 1 - Version Algorithmique (snake-algo.py)
+- Implémentation A* :
+- Safety check :
+- Tests et optimisation :
+
+### Livrable 2 - Version RL (snake-ia.py)
+- Architecture réseau (model.py) :
+- Agent RL (agent.py) :
+- Training loop :
+- Hyperparameter tuning :
+
+### Infrastructure commune
+- Helper module :
+- Documentation :
+- Tests :
+
+## Timeline
+
+### Semaine 1-4 : Algorithmes
+- [ ] Semaine 1 : Analyse et setup
+- [ ] Semaine 2 : Implémentation A*
+- [ ] Semaine 3 : Safety check et optimisations
+- [ ] Semaine 4 : Tests et documentation
+
+### Semaine 5-8 : Reinforcement Learning
+- [ ] Semaine 5 : Architecture RL
+- [ ] Semaine 6 : Training loop et experience replay
+- [ ] Semaine 7 : Hyperparameter tuning
+- [ ] Semaine 8 : Évaluation et comparaison
+
+## Résultats
+
+### Version Algorithmique
+- Score maximum :
+- Score moyen (sur 100 games) :
+- Temps moyen par décision :
+
+### Version RL
+- Games d'entraînement :
+- Score maximum :
+- Score moyen (derniers 100 games) :
+- Convergence atteinte à game # :
+
+## Difficultés rencontrées
+
+### Techniques
+-
+
+### Algorithmiques
+-
+
+### RL spécifiques
+-
+
+## Apprentissages
+
+### Compétences techniques
+-
+
+### Transfert en entreprise
+-
+
+---
+*Projet réalisé dans le cadre du cours de Reinforcement Learning*

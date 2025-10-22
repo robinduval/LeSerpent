@@ -1,1 +1,9 @@
-C'est ici que tu mets la timeline
+A la main: 100% (on suppose être trop fort)
+Algo A*: 99 en 10 games
+IA: 70 en 350 games
+
+19:30 - Debut de l'implementation de l'algo et IA
+19:31 - Lancement de l'algo A* et obtiention du score de 99 en ~ 30 parties
+20:10 - Lancement de l'entrainement avec les rewards par defaut
+20:15 - Obtention du score max de 70 en 350 parties
+20:30 / 21:00 - Tentative d'amelioration de l'algo et optimisation du model IA en changeant les rewards
