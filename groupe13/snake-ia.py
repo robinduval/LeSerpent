@@ -1,52 +1,21 @@
 import pygame
 import random
 import time
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
 from collections import deque
 import os
-
-# --- OPTIMISATION APPLE SILICON + NEURAL ENGINE ---
-# Configure TensorFlow pour utiliser Metal (GPU) et Neural Engine
-try:
-    # Activer l'accélération GPU via Metal
-    physical_devices = tf.config.list_physical_devices('GPU')
-    if len(physical_devices) > 0:
-        print(f"🔥 GPU détecté: {physical_devices}")
-        # Configurer la croissance mémoire pour éviter d'allouer toute la VRAM
-        for device in physical_devices:
-            tf.config.experimental.set_memory_growth(device, True)
-        print("✓ Accélération GPU Metal activée!")
-    else:
-        print("⚠️  Aucun GPU détecté, utilisation du CPU")
-except Exception as e:
-    print(f"Configuration GPU: {e}")
-
-# Optimisations pour Neural Engine et performances maximales
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Réduit les logs TensorFlow
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '1'  # Optimisations oneDNN
-tf.config.optimizer.set_jit(True)  # Active XLA (Accelerated Linear Algebra)
-
-# Configuration pour utiliser le Neural Engine via Core ML delegate
-try:
-    # Set threading for optimal performance on Apple Silicon
-    tf.config.threading.set_inter_op_parallelism_threads(0)  # Auto
-    tf.config.threading.set_intra_op_parallelism_threads(0)  # Auto
-    print("✓ Threading optimisé pour Apple Silicon")
-except:
-    pass
-
-print("🧠 Neural Engine: Utilisation via Metal Performance Shaders")
-print("=" * 60)
+import json
 
 # --- CONSTANTES DE JEU ---
 # Taille de la grille (20x20)
 GRID_SIZE = 15
 # Taille d'une cellule en pixels
 CELL_SIZE = 30
-# Vitesse de jeu (images par seconde) - Super rapide!
-GAME_SPEED = 1000  # Très rapide pour l'entraînement
+# Vitesse de jeu (images par seconde) - très rapide pour l'entraînement
+GAME_SPEED = 1000
 
 # Dimensions de l'écran (avec espace pour le score/timer)
 SCREEN_WIDTH = GRID_SIZE * CELL_SIZE
@@ -68,14 +37,7 @@ DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
 
-# Actions (indices pour le réseau de neurones)
-ACTION_UP = 0
-ACTION_DOWN = 1
-ACTION_LEFT = 2
-ACTION_RIGHT = 3
-ACTIONS = [UP, DOWN, LEFT, RIGHT]
-
-# Hyperparamètres DQN optimisés pour Neural Engine
+# --- HYPERPARAMÈTRES IA ---
 STATE_SIZE = 11  # 3 danger + 4 direction + 4 apple position
 ACTION_SIZE = 4  # UP, DOWN, LEFT, RIGHT
 LEARNING_RATE = 0.001
@@ -83,17 +45,26 @@ GAMMA = 0.95  # Discount factor
 EPSILON_START = 1.0
 EPSILON_MIN = 0.01
 EPSILON_DECAY = 0.995
-BATCH_SIZE = 64  # Puissance de 2 - optimal pour Neural Engine
-MEMORY_SIZE = 10000
-MODEL_PATH = "snake_dqn_model.h5"
+MEMORY_SIZE = 100000
+BATCH_SIZE = 64
+MODEL_PATH = "snake_dqn_model.pth"
+STATS_PATH = "training_stats.json"
 
-# Récompenses
-REWARD_EAT_APPLE = 10
-REWARD_WIN = 100
-REWARD_MOVE = -1
-REWARD_LOSE = -10
+# --- RÉSEAU DE NEURONES DQN ---
 
-# --- CLASSES DQN ---
+class DQN(nn.Module):
+    """Réseau de neurones Deep Q-Network pour l'apprentissage du Snake."""
+    def __init__(self, input_size, hidden_size, output_size):
+        super(DQN, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, output_size)
+        
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 class ReplayMemory:
     """Mémoire de replay pour stocker les expériences passées."""
@@ -106,145 +77,204 @@ class ReplayMemory:
     
     def sample(self, batch_size):
         """Échantillonne un batch aléatoire d'expériences."""
-        return random.sample(self.memory, min(batch_size, len(self.memory)))
+        return random.sample(self.memory, batch_size)
     
     def __len__(self):
         return len(self.memory)
 
 class DQNAgent:
-    """Agent DQN pour apprendre à jouer au Snake."""
+    """Agent utilisant DQN pour apprendre à jouer au Snake."""
     def __init__(self):
-        self.state_size = STATE_SIZE
-        self.action_size = ACTION_SIZE
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Utilisation du device: {self.device}")
+        
+        # Réseau principal et réseau cible
+        self.model = DQN(STATE_SIZE, 256, ACTION_SIZE).to(self.device)
+        self.target_model = DQN(STATE_SIZE, 256, ACTION_SIZE).to(self.device)
+        self.target_model.load_state_dict(self.model.state_dict())
+        
+        self.optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
+        self.criterion = nn.MSELoss()
+        
         self.memory = ReplayMemory(MEMORY_SIZE)
         self.epsilon = EPSILON_START
-        self.model = self._build_model()
-        self.target_model = self._build_model()
-        self.update_target_model()
         
-    def _build_model(self):
-        """Construit le réseau de neurones DQN optimisé pour Neural Engine."""
-        # Neural Engine préfère les tailles de batch en puissances de 2
-        # et les opérations GEMM optimisées
-        model = keras.Sequential([
-            # Input layer - explicite pour Neural Engine
-            keras.layers.Input(shape=(self.state_size,)),
-            # Hidden layers avec tailles optimales pour ANE (Apple Neural Engine)
-            keras.layers.Dense(128, activation='relu', 
-                             kernel_initializer='he_normal'),
-            keras.layers.Dense(128, activation='relu',
-                             kernel_initializer='he_normal'),
-            keras.layers.Dense(64, activation='relu',
-                             kernel_initializer='he_normal'),
-            # Output layer
-            keras.layers.Dense(self.action_size, activation='linear',
-                             kernel_initializer='glorot_uniform')
-        ])
+        # Statistiques d'entraînement
+        self.episode_count = 0
+        self.total_steps = 0
+        self.scores = []
+        self.avg_scores = []
+        self.losses = []
+        self.epsilons = []
         
-        # Optimizer optimisé pour Apple Silicon
-        optimizer = keras.optimizers.Adam(
-            learning_rate=LEARNING_RATE,
-            epsilon=1e-7,  # Stabilité numérique
-            amsgrad=False  # Plus rapide
-        )
-        
-        model.compile(
-            optimizer=optimizer,
-            loss='mse',
-            jit_compile=True  # XLA compilation pour le Neural Engine
-        )
-        
-        return model
+        # Charger le modèle si disponible
+        self.load_model()
     
-    def update_target_model(self):
-        """Copie les poids du modèle principal vers le modèle cible."""
-        self.target_model.set_weights(self.model.get_weights())
+    def get_state(self, snake, apple):
+        """
+        Génère l'état actuel du jeu pour le réseau de neurones.
+        État: [danger_left, danger_straight, danger_right,
+               dir_up, dir_down, dir_left, dir_right,
+               apple_up, apple_down, apple_left, apple_right]
+        """
+        head = snake.head_pos
+        direction = snake.direction
+        
+        # Calculer les points pour les 3 directions (gauche, tout droit, droite)
+        # Relatif à la direction actuelle
+        point_straight = [head[0] + direction[0], head[1] + direction[1]]
+        
+        # Rotation à gauche
+        if direction == UP:
+            point_left = [head[0] - 1, head[1]]
+            point_right = [head[0] + 1, head[1]]
+        elif direction == DOWN:
+            point_left = [head[0] + 1, head[1]]
+            point_right = [head[0] - 1, head[1]]
+        elif direction == LEFT:
+            point_left = [head[0], head[1] + 1]
+            point_right = [head[0], head[1] - 1]
+        else:  # RIGHT
+            point_left = [head[0], head[1] - 1]
+            point_right = [head[0], head[1] + 1]
+        
+        # Vérifier les dangers (collision avec le corps ou mur via wrap-around)
+        danger_straight = self.is_collision(point_straight, snake.body)
+        danger_left = self.is_collision(point_left, snake.body)
+        danger_right = self.is_collision(point_right, snake.body)
+        
+        # Direction actuelle (one-hot encoding)
+        dir_up = direction == UP
+        dir_down = direction == DOWN
+        dir_left = direction == LEFT
+        dir_right = direction == RIGHT
+        
+        # Position de la pomme (relative à la tête)
+        apple_up = apple.position[1] < head[1]
+        apple_down = apple.position[1] > head[1]
+        apple_left = apple.position[0] < head[0]
+        apple_right = apple.position[0] > head[0]
+        
+        state = [
+            danger_left,
+            danger_straight,
+            danger_right,
+            dir_up,
+            dir_down,
+            dir_left,
+            dir_right,
+            apple_up,
+            apple_down,
+            apple_left,
+            apple_right
+        ]
+        
+        return np.array(state, dtype=np.float32)
+    
+    def is_collision(self, point, body):
+        """Vérifie si un point est en collision avec le corps du serpent."""
+        # Wrap around pour la grille
+        point = [point[0] % GRID_SIZE, point[1] % GRID_SIZE]
+        return point in body
+    
+    def act(self, state):
+        """Choisit une action selon la politique epsilon-greedy."""
+        if random.random() < self.epsilon:
+            # Exploration: action aléatoire
+            return random.randint(0, ACTION_SIZE - 1)
+        else:
+            # Exploitation: meilleure action selon le modèle
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                q_values = self.model(state_tensor)
+            return q_values.argmax().item()
     
     def remember(self, state, action, reward, next_state, done):
-        """Stocke une expérience dans la mémoire."""
+        """Stocke une expérience dans la mémoire de replay."""
         self.memory.push(state, action, reward, next_state, done)
     
-    def act(self, state, training=True):
-        """Choisit une action selon epsilon-greedy."""
-        if training and np.random.rand() <= self.epsilon:
-            return random.randrange(self.action_size)
-        
-        # Utiliser __call__ au lieu de predict pour plus de rapidité
-        state_tensor = np.array([state], dtype=np.float32)
-        q_values = self.model(state_tensor, training=False)
-        return int(np.argmax(q_values[0]))
-    
     def replay(self):
-        """Entraîne le modèle avec un batch de la mémoire de replay (optimisé Neural Engine)."""
+        """Entraîne le réseau sur un batch d'expériences."""
         if len(self.memory) < BATCH_SIZE:
-            return 0
+            return None
         
         batch = self.memory.sample(BATCH_SIZE)
-        states = np.array([exp[0] for exp in batch], dtype=np.float32)
-        actions = np.array([exp[1] for exp in batch], dtype=np.int32)
-        rewards = np.array([exp[2] for exp in batch], dtype=np.float32)
-        next_states = np.array([exp[3] for exp in batch], dtype=np.float32)
-        dones = np.array([exp[4] for exp in batch], dtype=np.bool_)
+        states, actions, rewards, next_states, dones = zip(*batch)
         
-        # Utiliser TensorFlow natif pour que le Neural Engine puisse optimiser
-        states_tf = tf.constant(states, dtype=tf.float32)
-        next_states_tf = tf.constant(next_states, dtype=tf.float32)
+        states = torch.FloatTensor(np.array(states)).to(self.device)
+        actions = torch.LongTensor(actions).to(self.device)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        next_states = torch.FloatTensor(np.array(next_states)).to(self.device)
+        dones = torch.FloatTensor(dones).to(self.device)
         
-        # Calcul des Q-values en mode inférence (Neural Engine peut accélérer)
-        current_q_values = self.model(states_tf, training=False)
-        next_q_values = self.target_model(next_states_tf, training=False)
+        # Prédictions actuelles
+        current_q_values = self.model(states).gather(1, actions.unsqueeze(1))
         
-        # Opérations TensorFlow (optimisées pour Metal/Neural Engine)
-        max_next_q = tf.reduce_max(next_q_values, axis=1)
+        # Valeurs Q cibles
+        with torch.no_grad():
+            next_q_values = self.target_model(next_states).max(1)[0]
+            target_q_values = rewards + (1 - dones) * GAMMA * next_q_values
         
-        # Calcul vectorisé des targets
-        target_q_values = current_q_values.numpy()
-        for i in range(BATCH_SIZE):
-            if dones[i]:
-                target_q_values[i][actions[i]] = rewards[i]
-            else:
-                target_q_values[i][actions[i]] = rewards[i] + GAMMA * max_next_q[i].numpy()
+        # Calculer la perte
+        loss = self.criterion(current_q_values.squeeze(), target_q_values)
         
-        # Entraînement optimisé pour Apple Silicon
-        # Le Neural Engine accélère les opérations GEMM lors du fit
-        history = self.model.fit(
-            states_tf, 
-            target_q_values, 
-            epochs=1, 
-            verbose=0, 
-            batch_size=BATCH_SIZE,
-            shuffle=False  # Pas besoin de shuffle pour un seul epoch
-        )
-        loss = history.history['loss'][0]
+        # Backpropagation
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
         
-        # Decay epsilon
-        if self.epsilon > EPSILON_MIN:
-            self.epsilon *= EPSILON_DECAY
-        
-        return loss
+        return loss.item()
     
-    def save(self, filepath=MODEL_PATH):
-        """Sauvegarde le modèle."""
-        self.model.save(filepath)
-        print(f"Modèle sauvegardé dans {filepath}")
+    def update_target_model(self):
+        """Met à jour le réseau cible avec les poids du réseau principal."""
+        self.target_model.load_state_dict(self.model.state_dict())
     
-    def load(self, filepath=MODEL_PATH):
-        """Charge le modèle."""
-        if os.path.exists(filepath):
-            try:
-                self.model = keras.models.load_model(filepath)
-                self.target_model = keras.models.load_model(filepath)
-                print(f"Modèle chargé depuis {filepath}")
-                return True
-            except Exception as e:
-                print(f"Erreur lors du chargement du modèle: {e}")
-                print(f"Suppression de l'ancien modèle et création d'un nouveau...")
-                try:
-                    os.remove(filepath)
-                except:
-                    pass
-                return False
-        return False
+    def decay_epsilon(self):
+        """Diminue epsilon pour réduire l'exploration au fil du temps."""
+        self.epsilon = max(EPSILON_MIN, self.epsilon * EPSILON_DECAY)
+    
+    def save_model(self):
+        """Sauvegarde le modèle et les statistiques."""
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon,
+            'episode_count': self.episode_count,
+            'total_steps': self.total_steps
+        }, MODEL_PATH)
+        
+        stats = {
+            'scores': self.scores,
+            'avg_scores': self.avg_scores,
+            'losses': self.losses,
+            'epsilons': self.epsilons
+        }
+        with open(STATS_PATH, 'w') as f:
+            json.dump(stats, f)
+        
+        print(f"Modèle sauvegardé: {MODEL_PATH}")
+    
+    def load_model(self):
+        """Charge le modèle et les statistiques si disponibles."""
+        if os.path.exists(MODEL_PATH):
+            checkpoint = torch.load(MODEL_PATH, map_location=self.device)
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.target_model.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.epsilon = checkpoint['epsilon']
+            self.episode_count = checkpoint['episode_count']
+            self.total_steps = checkpoint['total_steps']
+            print(f"Modèle chargé: {MODEL_PATH} (Episode {self.episode_count})")
+            
+            if os.path.exists(STATS_PATH):
+                with open(STATS_PATH, 'r') as f:
+                    stats = json.load(f)
+                    self.scores = stats['scores']
+                    self.avg_scores = stats['avg_scores']
+                    self.losses = stats['losses']
+                    self.epsilons = stats['epsilons']
+        else:
+            print("Nouveau modèle créé")
 
 # --- CLASSES DU JEU ---
 
@@ -305,64 +335,6 @@ class Snake:
     def is_game_over(self):
         """Retourne True si le jeu est terminé (mur ou morsure)."""
         return self.check_wall_collision() or self.check_self_collision()
-    
-    def get_danger_state(self):
-        """Retourne l'état des dangers (gauche, tout droit, droite) par rapport à la direction actuelle."""
-        # Directions relatives
-        dir_index = ACTIONS.index(self.direction)
-        
-        # Gauche, Tout droit, Droite (relativement à la direction actuelle)
-        directions_to_check = [
-            ACTIONS[(dir_index - 1) % 4],  # Gauche
-            ACTIONS[dir_index],              # Tout droit
-            ACTIONS[(dir_index + 1) % 4]   # Droite
-        ]
-        
-        dangers = []
-        for direction in directions_to_check:
-            next_x = (self.head_pos[0] + direction[0]) % GRID_SIZE
-            next_y = (self.head_pos[1] + direction[1]) % GRID_SIZE
-            next_pos = [next_x, next_y]
-            
-            # Danger si collision avec le corps
-            is_danger = next_pos in self.body[1:]
-            dangers.append(1 if is_danger else 0)
-        
-        return dangers
-    
-    def get_direction_state(self):
-        """Retourne la direction actuelle encodée en one-hot."""
-        direction_vector = [0, 0, 0, 0]
-        dir_index = ACTIONS.index(self.direction)
-        direction_vector[dir_index] = 1
-        return direction_vector
-    
-    def get_apple_direction(self, apple_pos):
-        """Retourne la position relative de la pomme (up, down, left, right)."""
-        apple_direction = [0, 0, 0, 0]  # [up, down, left, right]
-        
-        # Différence verticale
-        if apple_pos[1] < self.head_pos[1]:
-            apple_direction[0] = 1  # Up
-        elif apple_pos[1] > self.head_pos[1]:
-            apple_direction[1] = 1  # Down
-        
-        # Différence horizontale
-        if apple_pos[0] < self.head_pos[0]:
-            apple_direction[2] = 1  # Left
-        elif apple_pos[0] > self.head_pos[0]:
-            apple_direction[3] = 1  # Right
-        
-        return apple_direction
-    
-    def get_state(self, apple_pos):
-        """Retourne l'état complet pour le DQN (11 valeurs binaires)."""
-        danger = self.get_danger_state()  # 3 valeurs
-        direction = self.get_direction_state()  # 4 valeurs
-        apple_dir = self.get_apple_direction(apple_pos)  # 4 valeurs
-        
-        state = danger + direction + apple_dir
-        return np.array(state, dtype=np.float32)
 
     def draw(self, surface):
         """Dessine le serpent sur la surface de jeu."""
@@ -417,29 +389,49 @@ def draw_grid(surface):
     for y in range(SCORE_PANEL_HEIGHT, SCREEN_HEIGHT, CELL_SIZE):
         pygame.draw.line(surface, GRIS_GRILLE, (0, y), (SCREEN_WIDTH, y))
 
-def display_info(surface, font, snake, start_time):
+def display_info(surface, font, snake, start_time, agent=None, episode=0, avg_score=0, record=0):
     """Affiche le score et le temps écoulé dans le panneau supérieur."""
     
     # Dessiner le panneau de score
     pygame.draw.rect(surface, GRIS_FOND, (0, 0, SCREEN_WIDTH, SCORE_PANEL_HEIGHT))
     pygame.draw.line(surface, BLANC, (0, SCORE_PANEL_HEIGHT - 2), (SCREEN_WIDTH, SCORE_PANEL_HEIGHT - 2), 2)
 
-    # Afficher le score
-    score_text = font.render(f"Score: {snake.score}", True, BLANC)
-    surface.blit(score_text, (10, 20))
+    if agent:
+        # Mode IA - Affichage étendu
+        # Ligne 1
+        episode_text = font.render(f"Épisode: {episode}", True, BLANC)
+        surface.blit(episode_text, (10, 10))
+        
+        score_text = font.render(f"Score: {snake.score}", True, BLANC)
+        surface.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 10))
+        
+        epsilon_text = font.render(f"ε: {agent.epsilon:.3f}", True, BLANC)
+        surface.blit(epsilon_text, (SCREEN_WIDTH - epsilon_text.get_width() - 10, 10))
+        
+        # Ligne 2
+        avg_text = font.render(f"Moy: {avg_score:.1f}", True, BLANC)
+        surface.blit(avg_text, (10, 45))
+        
+        record_text = font.render(f"Record: {record}", True, BLANC)
+        surface.blit(record_text, (SCREEN_WIDTH // 2 - record_text.get_width() // 2, 45))
+        
+        steps_text = font.render(f"Steps: {agent.total_steps}", True, BLANC)
+        surface.blit(steps_text, (SCREEN_WIDTH - steps_text.get_width() - 10, 45))
+    else:
+        # Mode manuel - Affichage original
+        score_text = font.render(f"Score: {snake.score}", True, BLANC)
+        surface.blit(score_text, (10, 20))
 
-    # Afficher le temps
-    elapsed_time = time.time() - start_time
-    minutes = int(elapsed_time // 60)
-    seconds = int(elapsed_time % 60)
-    time_text = font.render(f"Temps: {minutes:02d}:{seconds:02d}", True, BLANC)
-    surface.blit(time_text, (SCREEN_WIDTH - time_text.get_width() - 10, 20))
-    
-    # Afficher le taux de remplissage
-    max_cells = GRID_SIZE * GRID_SIZE
-    fill_rate = (len(snake.body) / max_cells) * 100
-    fill_text = font.render(f"Remplissage: {fill_rate:.1f}%", True, BLANC)
-    surface.blit(fill_text, (SCREEN_WIDTH // 2 - fill_text.get_width() // 2, 20))
+        elapsed_time = time.time() - start_time
+        minutes = int(elapsed_time // 60)
+        seconds = int(elapsed_time % 60)
+        time_text = font.render(f"Temps: {minutes:02d}:{seconds:02d}", True, BLANC)
+        surface.blit(time_text, (SCREEN_WIDTH - time_text.get_width() - 10, 20))
+        
+        max_cells = GRID_SIZE * GRID_SIZE
+        fill_rate = (len(snake.body) / max_cells) * 100
+        fill_text = font.render(f"Remplissage: {fill_rate:.1f}%", True, BLANC)
+        surface.blit(fill_text, (SCREEN_WIDTH // 2 - fill_text.get_width() // 2, 20))
 
 def display_message(surface, font, message, color=BLANC, y_offset=0):
     """
@@ -458,242 +450,187 @@ def display_message(surface, font, message, color=BLANC, y_offset=0):
     pygame.draw.rect(surface, BLANC, bg_rect, 2, border_radius=10)
     surface.blit(text_surface, rect)
 
-# --- BOUCLE PRINCIPALE DU JEU ---
+# --- BOUCLE PRINCIPALE DU JEU AVEC IA ---
 
-def run_game_episode(agent=None, render=True, training=True):
-    """
-    Exécute un épisode de jeu.
+def action_to_direction(action, current_direction):
+    """Convertit un index d'action en direction."""
+    directions = [UP, DOWN, LEFT, RIGHT]
+    return directions[action]
+
+def get_reward(snake, apple, prev_score, game_over, victory):
+    """Calcule la récompense selon les contraintes."""
+    reward = -0.1  # Pénalité de mouvement par défaut
     
-    Args:
-        agent: Agent DQN (None pour contrôle humain)
-        render: Afficher le jeu visuellement (toujours True maintenant)
-        training: Mode entraînement (utilise epsilon-greedy)
-    
-    Returns:
-        (score, steps, victory, total_reward) ou (None, None, None, None) si fenêtre fermée
-    """
-    pygame.init()
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Snake IA - DQN Learning")
-    clock = pygame.time.Clock()
-    font_main = pygame.font.Font(None, 30)
-    font_small = pygame.font.Font(None, 20)
-    font_game_over = pygame.font.Font(None, 50)
-    
-    # Initialisation des objets du jeu
-    snake = Snake()
-    apple = Apple(snake.body)
-    
-    # Variables de jeu
-    running = True
-    game_over = False
-    victory = False
-    steps = 0
-    total_reward = 0
-    train_counter = 0  # Compteur pour entraînement
-    
-    start_time = time.time()
-    
-    # État initial
-    if agent:
-        state = snake.get_state(apple.position)
-    
-    # Boucle de jeu
-    while running and not game_over:
-        # Gestion des événements
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                pygame.quit()
-                return (None, None, None, None)  # Signal de fermeture
-            
-            if event.type == pygame.KEYDOWN and not agent:
-                # Contrôle humain uniquement si pas d'agent
-                if event.key == pygame.K_UP:
-                    snake.set_direction(UP)
-                elif event.key == pygame.K_DOWN:
-                    snake.set_direction(DOWN)
-                elif event.key == pygame.K_LEFT:
-                    snake.set_direction(LEFT)
-                elif event.key == pygame.K_RIGHT:
-                    snake.set_direction(RIGHT)
-        
-        # Logique de mise à jour - Pas de délai, mouvement à chaque frame!
-        # Action de l'agent IA
-        if agent:
-            action = agent.act(state, training=training)
-            snake.set_direction(ACTIONS[action])
-        
-        # Déplacement
-        snake.move()
-        steps += 1
-        
-        # Récompense de base pour le mouvement
-        reward = REWARD_MOVE
-        
-        # Vérification Game Over
-        if snake.is_game_over():
-            game_over = True
-            reward = REWARD_LOSE
-        # Vérification pomme mangée
-        elif snake.head_pos == list(apple.position):
-            snake.grow()
-            reward = REWARD_EAT_APPLE
-            
-            if not apple.relocate(snake.body):
-                victory = True
-                game_over = True
-                reward = REWARD_WIN
-        
-        total_reward += reward
-        
-        # Stocker l'expérience et apprendre
-        if agent:
-            next_state = snake.get_state(apple.position)
-            agent.remember(state, action, reward, next_state, game_over)
-            
-            # Entraîner seulement tous les 10 steps pour éviter le ralentissement
-            if training:
-                train_counter += 1
-                if train_counter >= 10:
-                    agent.replay()
-                    train_counter = 0
-            
-            state = next_state
-        
-        # Rendu (toujours activé)
-        screen.fill(GRIS_FOND)
-        game_area_rect = pygame.Rect(0, SCORE_PANEL_HEIGHT, SCREEN_WIDTH, SCREEN_WIDTH)
-        pygame.draw.rect(screen, NOIR, game_area_rect)
-        
-        draw_grid(screen)
-        apple.draw(screen)
-        snake.draw(screen)
-        display_info(screen, font_main, snake, start_time)
-        
-        # Affiche info IA
-        if agent:
-            mode_text = "TRAINING" if training else "DEMO"
-            epsilon_text = f"Epsilon: {agent.epsilon:.3f}" if training else "BEST POLICY"
-            
-            mode_surface = font_small.render(f"Mode: {mode_text}", True, ORANGE)
-            screen.blit(mode_surface, (10, 55))
-            
-            epsilon_surface = font_small.render(epsilon_text, True, ORANGE)
-            screen.blit(epsilon_surface, (SCREEN_WIDTH - epsilon_surface.get_width() - 10, 55))
-        
-        if game_over:
-            if victory:
-                display_message(screen, font_game_over, "VICTOIRE !", VERT)
-                message_details = f"Score: {snake.score} | Reward: {total_reward:.0f}"
-                display_message(screen, font_main, message_details, BLANC, y_offset=100)
-            else:
-                display_message(screen, font_game_over, "GAME OVER", ROUGE)
-                message_details = f"Score: {snake.score} | Reward: {total_reward:.0f}"
-                display_message(screen, font_main, message_details, BLANC, y_offset=100)
-        
-        pygame.display.flip()
-        clock.tick(0)  # Pas de limite de FPS - Maximum speed!
-    
-    # Attente après game over (0.1 seconde seulement)
     if game_over:
-        waiting = True
-        wait_start = time.time()
-        while waiting and time.time() - wait_start < 0.1:  # Très rapide!
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    waiting = False
-                    pygame.quit()
-                    return (None, None, None, None)  # Signal de fermeture
-            clock.tick(0)  # Pas de limite
+        if victory:
+            reward = 100  # Victoire
+        else:
+            reward = -50  # Défaite
+    elif snake.score > prev_score:
+        reward = 10  # Pomme mangée
     
-    pygame.quit()
-    
-    return (snake.score, steps, victory, total_reward)
+    return reward
 
-def train_dqn_agent(load_existing=True):
-    """
-    Entraîne l'agent DQN sur plusieurs épisodes (mode infini).
-    Tous les épisodes sont rendus visuellement.
-    """
+def train():
+    """Fonction principale pour entraîner l'agent IA au Snake."""
+    pygame.init()
+    
+    # Configuration de l'écran
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Snake IA - Entraînement DQN avec PyTorch")
+    clock = pygame.time.Clock()
+    
+    # Configuration des polices
+    font_main = pygame.font.Font(None, 30)
+    
+    # Initialiser l'agent IA
     agent = DQNAgent()
     
-    # Charger le modèle existant si disponible
-    if load_existing:
-        agent.load()
+    # Statistiques globales
+    record_score = max(agent.scores) if agent.scores else 0
     
-    print("=" * 60)
-    print("ENTRAÎNEMENT DQN DÉMARRÉ (MODE INFINI)")
-    print("=" * 60)
-    print(f"Epsilon: {agent.epsilon:.3f} -> {EPSILON_MIN}")
-    print(f"Mémoire: {MEMORY_SIZE} expériences")
-    print(f"Batch size: {BATCH_SIZE}")
-    print("Fermez la fenêtre pour arrêter l'entraînement")
-    print("=" * 60)
+    # Boucle d'entraînement infinie
+    running = True
     
-    best_score = 0
-    scores = []
-    episode = 0
-    
-    while True:
-        episode += 1
+    while running:
+        # Initialisation d'un nouvel épisode
+        agent.episode_count += 1
+        episode = agent.episode_count
         
-        # Tous les épisodes sont rendus
-        render = True
-        training = True
+        snake = Snake()
+        apple = Apple(snake.body)
         
-        # Exécuter l'épisode
-        score, steps, victory, reward = run_game_episode(agent, render=render, training=training)
+        game_over = False
+        victory = False
+        prev_score = 0
+        episode_reward = 0
+        episode_loss = []
+        steps = 0
         
-        # Si l'utilisateur ferme la fenêtre, on arrête
-        if score is None or steps is None:
+        # Démarrage du chronomètre
+        start_time = time.time()
+        
+        # Obtenir l'état initial
+        state = agent.get_state(snake, apple)
+        
+        # Boucle de jeu pour un épisode
+        while not game_over and running:
+            # Gestion des événements (pour fermer la fenêtre)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    agent.save_model()
+                    pygame.quit()
+                    return
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_s:  # S pour sauvegarder
+                        agent.save_model()
+            
+            # L'agent choisit une action
+            action = agent.act(state)
+            new_direction = action_to_direction(action, snake.direction)
+            snake.set_direction(new_direction)
+            
+            # Effectuer le mouvement
+            snake.move()
+            steps += 1
+            agent.total_steps += 1
+            
+            # Vérifier les collisions
+            if snake.is_game_over():
+                game_over = True
+            
+            # Vérifier si la pomme est mangée
+            if snake.head_pos == list(apple.position):
+                prev_score = snake.score
+                snake.grow()
+                
+                # Tente de replacer la pomme
+                if not apple.relocate(snake.body):
+                    victory = True
+                    game_over = True
+            
+            # Obtenir le nouvel état
+            next_state = agent.get_state(snake, apple)
+            
+            # Calculer la récompense
+            reward = get_reward(snake, apple, prev_score, game_over, victory)
+            episode_reward += reward
+            
+            # Stocker l'expérience
+            agent.remember(state, action, reward, next_state, game_over)
+            
+            # Entraîner le réseau
+            loss = agent.replay()
+            if loss is not None:
+                episode_loss.append(loss)
+            
+            # Passer au prochain état
+            state = next_state
+            
+            # Affichage (tous les frames pour la visualisation)
+            screen.fill(GRIS_FOND)
+            
+            # Zone de jeu
+            game_area_rect = pygame.Rect(0, SCORE_PANEL_HEIGHT, SCREEN_WIDTH, SCREEN_WIDTH)
+            pygame.draw.rect(screen, NOIR, game_area_rect)
+            
+            draw_grid(screen)
+            apple.draw(screen)
+            snake.draw(screen)
+            
+            # Calculer la moyenne des scores (sur les 100 derniers)
+            avg_score = np.mean(agent.scores[-100:]) if agent.scores else 0
+            
+            # Afficher les informations
+            display_info(screen, font_main, snake, start_time, agent, episode, avg_score, record_score)
+            
+            pygame.display.flip()
+            clock.tick(GAME_SPEED)
+        
+        # Fin de l'épisode
+        if not running:
             break
             
-        scores.append(score)
+        # Mettre à jour les statistiques
+        agent.scores.append(snake.score)
+        avg_score = np.mean(agent.scores[-100:])
+        agent.avg_scores.append(avg_score)
+        agent.epsilons.append(agent.epsilon)
         
-        # Mise à jour du modèle cible tous les 10 épisodes
+        if episode_loss:
+            avg_loss = np.mean(episode_loss)
+            agent.losses.append(avg_loss)
+        
+        # Mettre à jour le record
+        if snake.score > record_score:
+            record_score = snake.score
+            print(f"🏆 NOUVEAU RECORD ! Score: {record_score}")
+        
+        # Décrémenter epsilon
+        agent.decay_epsilon()
+        
+        # Mettre à jour le réseau cible périodiquement
         if episode % 10 == 0:
             agent.update_target_model()
         
-        # Sauvegarder le meilleur modèle
-        if score > best_score:
-            best_score = score
-            agent.save()
+        # Sauvegarder le modèle périodiquement
+        if episode % 50 == 0:
+            agent.save_model()
         
-        # Affichage des statistiques à chaque épisode
-        avg_score = np.mean(scores[-10:]) if len(scores) >= 10 else np.mean(scores)
-        print(f"Episode {episode} | "
-              f"Score: {score} | "
-              f"Avg(10): {avg_score:.1f} | "
-              f"Best: {best_score} | "
-              f"Steps: {steps} | "
-              f"Reward: {reward:.0f} | "
-              f"Epsilon: {agent.epsilon:.3f} | "
-              f"Memory: {len(agent.memory)}")
+        # Afficher les statistiques de l'épisode
+        status = "VICTOIRE" if victory else "Game Over"
+        print(f"Episode {episode} | {status} | Score: {snake.score} | "
+              f"Moy(100): {avg_score:.2f} | Epsilon: {agent.epsilon:.3f} | "
+              f"Steps: {steps} | Récompense: {episode_reward:.1f}")
     
-    print("=" * 60)
-    print("ENTRAÎNEMENT ARRÊTÉ")
-    print(f"Episodes complétés: {episode}")
-    print(f"Meilleur score: {best_score}")
-    if len(scores) >= 10:
-        print(f"Score moyen (derniers 10): {np.mean(scores[-10:]):.1f}")
-    print("=" * 60)
-    
-    return agent
+    # Fin de l'entraînement
+    agent.save_model()
+    pygame.quit()
 
 def main():
-    """Fonction principale pour lancer l'entraînement du Snake IA."""
-    # Lancer directement l'entraînement infini
-    train_dqn_agent(load_existing=True)
+    """Point d'entrée principal - Lance l'entraînement IA."""
+    train()
 
 if __name__ == '__main__':
-    # Vérifier si TensorFlow est disponible
-    try:
-        import tensorflow as tf
-        print(f"TensorFlow version: {tf.__version__}")
-    except ImportError:
-        print("ERREUR: TensorFlow n'est pas installé!")
-        print("Installez-le avec: pip install tensorflow numpy")
-        exit(1)
-    
     main()
