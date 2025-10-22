@@ -1,1 +1,81 @@
-C'est ici que tu mets la timeline
+# TIMELINE DE GROUPE :
+
+## 19h36 : 
+Clone du repository et début de la phase de code en coordination avec notre ami Claude4.5.
+Le groupe était séparé en deux équipes :
+- Nazym : S'occupe de la partie deepLearning.
+- Louis-Paul et Josef : S'occupent de la partie implémentation algorithmique avancée.
+
+## 19h47 :
+La première version de notre algorithme avancée est prête et fonctionnelle, cette version implémente l'algorithme A \* avec une modification permettant de simuler les conséquences du chemin pris et de fallback en permettant au serpent de suivre sa propre queue si le chemin n'est pas safe.
+Durant l'installation des dépendances, le filesystem de Nazym devient complètement corrompu et son environnement Linux ne devient plus responsif (il aurait du utiliser un venv...).
+Nazym transmet donc le script à Josef afin de continuer l'implémentation plus tard sur un autre post de travail.
+
+## 20h06 :
+Une deuxième version de snake-algo.py est créee. Cette fois-ci, l'algorithme de Djikstra est utilisé.
+Premières remarques :
+- Avec Djikstra, le serpent calcule et prend le chemin le plus court vers la pomme (et sur ce coup, l'algo le fait très bien) mais ne prend pas en compte les conséquences futures/le niveau de sécurité du chemin : Il finit souvent par s'enfermer dans des cul-de-sac sans avoir de porte de sortie. Meilleur score : 25%
+- Avec A \*, le serpent ne prend pas en compte la croissance de sa queue lorsqu'il avale une pomme, il finit souvent par se manger la queue vu qu'elle ne bouge pas au tour où il avale la pomme. Meilleur score : 55%.
+- A \* reste donc notre choix pour la suite.
+
+## 20h20 : 
+Une version deep learning est released !
+
+En gros :
+- ça utilise un réseau de neurones à 3 couches (256 → 128 → 4 neurones)
+- Input: 11 états (danger détection, direction, position de la pomme)
+- Output: 4 actions (HAUT, DROIT, BAS, GAUCHE)
+
+Les facteurs de modification de scores sont relativement les mêmes à part pour celui-là :
+
+"- 10 si on passe trop de temps sans manger"
+
+Cette limite est actuellement de 100 pas.
+Le meilleur score est de 40%.
+
+## 20h35
+
+L'algorithme DHCR a été testé, ce fut un échec...
+Le serpent ne prenait pas assez de risque et ignorait parfois de la nouriture à proximité par sécurité. Il en résultait une grosse perte de points sur le long terme, même si, théoriquement, le serpent ne pouvait techniquement pas mourir avant d'avoir recouvert la carte.
+Meilleur score : 105 points (Pas mal quand même !)
+
+## 20h40
+
+Une tentative humaine a été lancé sur du 15x15 :
+
+Score : 25%
+
+## 20h50 
+
+Quelques améliorations ont été apportés à la version deep learning :
+
+- Vision à 8 directions au lieu de 3
+- Distance exacte et angle vers la pomme
+- Densité du serpent par quadrant
+- Distances aux murs normalisées
+- Feedback continu sur la progression vers la pomme
+- Pénalités adaptatives selon le stade du jeu
+- Petit bonus de survie
+- Réseau plus profond (512 → 256 → 128 → 4)
+- Batch size plus grand pour un apprentissage plus stable
+- Gamma plus élevé (0.99) pour mieux considérer le futur
+- Epsilon decay plus lent pour une meilleure exploration
+
+En plus d'ajouter la capacité de save et load des poids.
+
+## 20h57 
+
+Victoire obtenue en utilisant DHCR !! Le score max en algo passe à 225 points !!!
+
+
+
+## SCORE FINAUX :
+
+Humain : 56 points (25% de la carte)
+Algo : 225 points (100% de la carte)
+DeepLearning : 90 points (40% de la carte)
+
+Pour une grid de 15*15.
+
+
+# MERCI !!!
