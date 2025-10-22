@@ -4,8 +4,46 @@
 
 ### Timeline du Projet
 
-> **Note importante :** Cette timeline concerne uniquement la **partie Algorithmes** (BFS, Dijkstra, Algorithme Maison).  
-> La **partie IA/Machine Learning** (implémentée en parallèle avec un camarade) suit une timeline différente et n'est pas encore documentée ici.
+> **Note importante :** Ce projet comporte deux parties développées en parallèle durant la même session (19h40 - 21h15) :
+>
+> - **Partie Algorithmes** : Implémentation de pathfinding classiques (BFS, Dijkstra) et d'un algorithme maison adaptatif
+> - **Partie Deep Q-Learning (IA)** : Implémentation d'un réseau neuronal avec apprentissage par renforcement
+
+---
+
+### Timeline - Partie Deep Q-Learning (IA)
+
+**Phase 1 : Architecture Initiale (19h40 - 20h10)**
+
+- Conception de l'architecture du réseau neuronal (11 états → 256 neurones → 3 actions)
+- Définition des 11 états d'observation du serpent
+- Implémentation du système de récompenses
+- Première version de l'algorithme DQN avec Experience Replay
+
+**Phase 2 : Refactorisation pour Réutiliser serpent.py (20h10 - 20h35)**
+
+- Analyse du code de `serpent.py` pour identifier les composants réutilisables
+- Refactorisation du code pour éviter la duplication
+- Adaptation de l'environnement de jeu pour l'entraînement IA
+- Intégration de la classe Snake et de la logique de base
+
+**Phase 3 : Optimisation des États et Ajout Option -fps (20h35 - 20h55)**
+
+- Optimisation de la représentation des 11 états pour meilleur apprentissage
+- Ajout de l'option `-fps` pour contrôler la vitesse d'entraînement/visualisation
+- Tests de performance avec différents FPS
+- Amélioration de la convergence du modèle
+
+**Phase 4 : Correction du Wrapping et Optimisations Finales (20h55 - 21h15)**
+
+- Correction critique : gestion du wrapping (téléportation aux bords)
+- Synchronisation parfaite entre l'IA et l'environnement
+- Optimisations finales du système de récompenses
+- Sauvegarde automatique des poids du modèle
+
+**Résultat Final :**
+
+Modèle Deep Q-Learning fonctionnel avec apprentissage progressif. Le réseau apprend à éviter les collisions et à chercher la nourriture. L'architecture permet un entraînement rapide et une visualisation en temps réel.
 
 ---
 
@@ -57,6 +95,8 @@ Après de nombreux tests et ajustements sur environ 30 minutes, l'algorithme mai
 
 ### Utilisation
 
+#### Partie 1 : Algorithmes de Pathfinding
+
 **Lancement du jeu :**
 
 ```bash
@@ -72,9 +112,37 @@ python snake-algo.py
 - `Flèches` : Contrôle manuel (en mode 4)
 - `ESPACE` : Rejouer après Game Over
 
-### Algorithmes Implémentés
+#### Partie 2 : Deep Q-Learning (IA)
 
-#### 1. BFS (Breadth-First Search)
+**Entraînement du modèle :**
+
+```bash
+# Entraînement rapide (vitesse max, sans affichage ralenti)
+python snake_ia.py
+
+# Entraînement avec visualisation à 30 FPS
+python snake_ia.py -fps 30
+
+# Entraînement lent pour observer l'apprentissage
+python snake_ia.py -fps 10
+```
+
+**Options disponibles :**
+
+- `-fps N` : Contrôle la vitesse d'affichage (défaut : vitesse maximale)
+- Sans option : Entraînement à vitesse maximale pour convergence rapide
+
+**Fichiers générés :**
+
+- `snake_dqn_model.pth` : Poids du réseau neuronal (sauvegarde automatique)
+
+---
+
+### Détails Techniques
+
+#### Partie 1 : Algorithmes de Pathfinding
+
+##### 1. BFS (Breadth-First Search)
 
 **Principe :** Explore tous les chemins niveau par niveau pour trouver le plus court chemin vers la pomme.
 
@@ -90,7 +158,7 @@ python snake-algo.py
 - Ne garantit pas la survie à long terme
 - Adapté pour démonstration mais pas optimal
 
-#### 2. Dijkstra
+##### 2. Dijkstra
 
 **Principe :** Variante de BFS avec gestion des coûts. Dans notre cas, tous les coûts sont égaux (1 par case).
 
@@ -106,7 +174,7 @@ python snake-algo.py
 - Plus complexe sans bénéfice majeur ici
 - Peut aussi se piéger
 
-#### 3. Algorithme Maison - Hamilton Cycle Adaptatif
+##### 3. Algorithme Maison - Hamilton Cycle Adaptatif
 
 **Principe :** Algorithme hybride basé sur les concepts de Hamilton Cycle, A*, et BFS avec un système adaptatif à 4 modes selon le taux de remplissage de la grille.
 
@@ -130,15 +198,88 @@ python snake-algo.py
 - Compromis optimal entre vitesse et sécurité trouvé après de nombreux ajustements
 - Système adaptatif qui change de stratégie selon la phase de jeu
 
-### Comparaison des Performances
+#### Partie 2 : Deep Q-Learning (IA)
 
-| Algorithme         | Approche          | Points Forts              | Vitesse |
-|--------------------|-------------------|---------------------------|---------|
-| BFS                | Pathfinding simple| Simple, chemin le plus court | ⚡⚡⚡|
-| Dijkstra           | Coûts uniformes   | Extensible, optimal       | ⚡⚡   |
-| **Algo Maison**    | **Hybride adaptatif** | **~170 en 4min, sécurisé** | ⚡⚡   |
+##### Architecture du Réseau Neuronal
 
-### Concepts Techniques
+**Structure :**
+
+- **Couche d'entrée** : 11 états (observations de l'environnement)
+- **Couche cachée** : 256 neurones avec activation ReLU
+- **Couche de sortie** : 3 actions possibles (Gauche, Tout droit, Droite)
+
+**Les 11 États d'Observation :**
+
+1. **Danger immédiat (3 états)** : Danger à gauche, tout droit, droite
+2. **Direction actuelle (4 états)** : Nord, Sud, Est, Ouest (one-hot encoding)
+3. **Position de la nourriture (4 états)** : Nourriture à gauche, droite, en haut, en bas
+
+Ces 11 états permettent au réseau de comprendre :
+
+- Où sont les dangers immédiats
+- Dans quelle direction le serpent se déplace
+- Où se trouve la nourriture par rapport à la tête
+
+##### Système de Récompenses
+
+- **+10** : Manger une pomme (renforcement positif fort)
+- **-10** : Collision / Game Over (punition forte)
+- **0** : Mouvement neutre (exploration)
+
+Ce système simple mais efficace encourage le serpent à chercher la nourriture tout en évitant les collisions.
+
+##### Algorithme d'Apprentissage
+
+**Deep Q-Network (DQN) avec Experience Replay :**
+
+1. **Experience Replay** : Stockage de 100 000 expériences (état, action, récompense, état suivant)
+2. **Batch Learning** : Apprentissage par mini-batches de 1000 expériences
+3. **ε-greedy** : Exploration vs Exploitation
+   - Début : ε élevé (80%) = exploration
+   - Progressif : ε décroît jusqu'à 0% = exploitation pure
+4. **Optimizer** : Adam avec learning rate adaptatif
+5. **Loss** : Mean Squared Error sur les Q-values
+
+##### Particularités de l'Implémentation
+
+**Gestion du Wrapping :**
+
+- Le serpent peut traverser les bords de la grille (téléportation)
+- Les états tiennent compte du wrapping pour détecter les dangers
+- Synchronisation parfaite entre l'IA et l'environnement
+
+**Réutilisation du Code :**
+
+- Utilise les classes et fonctions de `serpent.py`
+- Évite la duplication de code
+- Environnement de jeu identique pour cohérence
+
+**Sauvegarde Automatique :**
+
+- Les poids du modèle sont sauvegardés automatiquement
+- Permet de reprendre l'entraînement ou d'utiliser un modèle pré-entraîné
+- Fichier : `snake_dqn_model.pth`
+
+**Option -fps :**
+
+- Permet de contrôler la vitesse de visualisation
+- Sans option : vitesse max pour entraînement rapide
+- Avec -fps : ralenti pour observer l'apprentissage
+
+---
+
+### Comparaison des Approches
+
+| Approche           | Type              | Avantages                 | Utilisation          |
+|--------------------|-------------------|---------------------------|----------------------|
+| BFS                | Pathfinding       | Simple, optimal           | Démonstration        |
+| Dijkstra           | Pathfinding       | Extensible, base pour A*  | Démonstration        |
+| **Algo Maison**    | **Hybride adaptatif** | **~170 en 4min**      | **Production**       |
+| **Deep Q-Learning**| **Apprentissage** | **Apprend seul**          | **Recherche/Expérimentation** |
+
+---
+
+### Concepts Techniques Clés
 
 **Can Reach Tail (Fonction Clé) :**
 
