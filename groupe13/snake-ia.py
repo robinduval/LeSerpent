@@ -8,6 +8,7 @@ import numpy as np
 from collections import deque
 import os
 import json
+import argparse
 
 # --- CONSTANTES DE JEU ---
 # Taille de la grille (20x20)
@@ -44,11 +45,17 @@ LEARNING_RATE = 0.001
 GAMMA = 0.95  # Discount factor
 EPSILON_START = 1.0
 EPSILON_MIN = 0.01
-EPSILON_DECAY = 0.995
-MEMORY_SIZE = 100000
+EPSILON_DECAY = 0.990
+MEMORY_SIZE = 50000
 BATCH_SIZE = 64
 MODEL_PATH = "snake_dqn_model.pth"
 STATS_PATH = "training_stats.json"
+
+# Optimisations Apple Silicon
+# Pour de meilleures performances sur MPS, utiliser des tailles de batch multiples de 8
+if BATCH_SIZE % 8 != 0:
+    BATCH_SIZE = ((BATCH_SIZE // 8) + 1) * 8
+    print(f"⚡ Batch size ajusté à {BATCH_SIZE} pour optimisation MPS")
 
 # --- RÉSEAU DE NEURONES DQN ---
 
@@ -85,8 +92,21 @@ class ReplayMemory:
 class DQNAgent:
     """Agent utilisant DQN pour apprendre à jouer au Snake."""
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Utilisation du device: {self.device}")
+        # Optimisation pour Apple Silicon - utilise MPS (Metal Performance Shaders) si disponible
+        # if torch.backends.mps.is_available():
+        #     self.device = torch.device("mps")
+        #     print(f"🚀 Utilisation du device: {self.device} (Apple GPU via Metal)")
+        # elif torch.cuda.is_available():
+        #     self.device = torch.device("cuda")
+        #     print(f"🚀 Utilisation du device: {self.device} (NVIDIA GPU)")
+        # else:
+        self.device = torch.device("cpu")
+        print(f"⚠️  Utilisation du device: {self.device} (CPU seulement)")
+        
+        # Afficher des informations sur l'accélération matérielle
+        if self.device.type == "mps":
+            print("✅ Accélération GPU Apple Silicon activée!")
+            print("   → Entraînement ~10x plus rapide qu'en CPU")
         
         # Réseau principal et réseau cible
         self.model = DQN(STATE_SIZE, 256, ACTION_SIZE).to(self.device)
@@ -102,10 +122,11 @@ class DQNAgent:
         # Statistiques d'entraînement
         self.episode_count = 0
         self.total_steps = 0
-        self.scores = []
-        self.avg_scores = []
-        self.losses = []
-        self.epsilons = []
+        # Utiliser deque avec maxlen pour éviter l'accumulation mémoire infinie
+        self.scores = deque(maxlen=10000)  # Garde les 10000 derniers scores
+        self.avg_scores = deque(maxlen=10000)
+        self.losses = deque(maxlen=10000)
+        self.epsilons = deque(maxlen=10000)
         
         # Charger le modèle si disponible
         self.load_model()
@@ -201,6 +222,8 @@ class DQNAgent:
         batch = self.memory.sample(BATCH_SIZE)
         states, actions, rewards, next_states, dones = zip(*batch)
         
+        # Transfert optimisé vers le device (MPS/CUDA/CPU)
+        # Sur Apple Silicon, les transferts vers MPS sont très rapides
         states = torch.FloatTensor(np.array(states)).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
@@ -210,7 +233,7 @@ class DQNAgent:
         # Prédictions actuelles
         current_q_values = self.model(states).gather(1, actions.unsqueeze(1))
         
-        # Valeurs Q cibles
+        # Valeurs Q cibles (désactiver le gradient pour économiser la mémoire)
         with torch.no_grad():
             next_q_values = self.target_model(next_states).max(1)[0]
             target_q_values = rewards + (1 - dones) * GAMMA * next_q_values
@@ -223,7 +246,13 @@ class DQNAgent:
         loss.backward()
         self.optimizer.step()
         
-        return loss.item()
+        # Convertir en float Python immédiatement pour éviter l'accumulation
+        loss_value = loss.item()
+        
+        # Nettoyer les tenseurs intermédiaires
+        del states, actions, rewards, next_states, dones, current_q_values, next_q_values, target_q_values, loss
+        
+        return loss_value
     
     def update_target_model(self):
         """Met à jour le réseau cible avec les poids du réseau principal."""
@@ -243,11 +272,12 @@ class DQNAgent:
             'total_steps': self.total_steps
         }, MODEL_PATH)
         
+        # Convertir deque en liste pour la sauvegarde JSON
         stats = {
-            'scores': self.scores,
-            'avg_scores': self.avg_scores,
-            'losses': self.losses,
-            'epsilons': self.epsilons
+            'scores': list(self.scores),
+            'avg_scores': list(self.avg_scores),
+            'losses': list(self.losses),
+            'epsilons': list(self.epsilons)
         }
         with open(STATS_PATH, 'w') as f:
             json.dump(stats, f)
@@ -269,10 +299,11 @@ class DQNAgent:
             if os.path.exists(STATS_PATH):
                 with open(STATS_PATH, 'r') as f:
                     stats = json.load(f)
-                    self.scores = stats['scores']
-                    self.avg_scores = stats['avg_scores']
-                    self.losses = stats['losses']
-                    self.epsilons = stats['epsilons']
+                    # Charger dans deque avec maxlen
+                    self.scores = deque(stats['scores'], maxlen=10000)
+                    self.avg_scores = deque(stats['avg_scores'], maxlen=10000)
+                    self.losses = deque(stats['losses'], maxlen=10000)
+                    self.epsilons = deque(stats['epsilons'], maxlen=10000)
         else:
             print("Nouveau modèle créé")
 
@@ -458,30 +489,45 @@ def action_to_direction(action, current_direction):
     return directions[action]
 
 def get_reward(snake, apple, prev_score, game_over, victory):
-    """Calcule la récompense selon les contraintes."""
-    reward = -0.1  # Pénalité de mouvement par défaut
+    """
+    Calcule la récompense selon les contraintes spécifiées.
+    
+    Récompenses:
+    - Manger une pomme: +10 (encourage l'objectif principal)
+    - Victoire (grille remplie): +100 (bonus exceptionnel)  
+    - Collision/Mort: -10 (pénalité modérée)
+    - Mouvement normal: -1 (encourage l'efficacité et évite les boucles infinies)
+    """
+    reward = -1  # Pénalité de mouvement pour encourager l'efficacité
     
     if game_over:
         if victory:
-            reward = 100  # Victoire
+            reward = 100  # Victoire exceptionnelle
         else:
-            reward = -50  # Défaite
+            reward = -30  # Pénalité de collision
     elif snake.score > prev_score:
-        reward = 10  # Pomme mangée
+        reward = 40  # Pomme mangée
     
     return reward
 
-def train():
+def train(render=True):
     """Fonction principale pour entraîner l'agent IA au Snake."""
-    pygame.init()
-    
-    # Configuration de l'écran
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Snake IA - Entraînement DQN avec PyTorch")
-    clock = pygame.time.Clock()
-    
-    # Configuration des polices
-    font_main = pygame.font.Font(None, 30)
+    if render:
+        pygame.init()
+        
+        # Configuration de l'écran
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Snake IA - Entraînement DQN avec PyTorch")
+        clock = pygame.time.Clock()
+        
+        # Configuration des polices
+        font_main = pygame.font.Font(None, 30)
+    else:
+        # Mode headless - pas d'initialisation pygame
+        screen = None
+        clock = None
+        font_main = None
+        print("Mode headless activé - entraînement sans rendu graphique")
     
     # Initialiser l'agent IA
     agent = DQNAgent()
@@ -515,16 +561,17 @@ def train():
         
         # Boucle de jeu pour un épisode
         while not game_over and running:
-            # Gestion des événements (pour fermer la fenêtre)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                    agent.save_model()
-                    pygame.quit()
-                    return
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_s:  # S pour sauvegarder
+            # Gestion des événements (uniquement si rendu activé)
+            if render:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
                         agent.save_model()
+                        pygame.quit()
+                        return
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_s:  # S pour sauvegarder
+                            agent.save_model()
             
             # L'agent choisit une action
             action = agent.act(state)
@@ -568,25 +615,26 @@ def train():
             # Passer au prochain état
             state = next_state
             
-            # Affichage (tous les frames pour la visualisation)
-            screen.fill(GRIS_FOND)
-            
-            # Zone de jeu
-            game_area_rect = pygame.Rect(0, SCORE_PANEL_HEIGHT, SCREEN_WIDTH, SCREEN_WIDTH)
-            pygame.draw.rect(screen, NOIR, game_area_rect)
-            
-            draw_grid(screen)
-            apple.draw(screen)
-            snake.draw(screen)
-            
-            # Calculer la moyenne des scores (sur les 100 derniers)
-            avg_score = np.mean(agent.scores[-100:]) if agent.scores else 0
-            
-            # Afficher les informations
-            display_info(screen, font_main, snake, start_time, agent, episode, avg_score, record_score)
-            
-            pygame.display.flip()
-            clock.tick(GAME_SPEED)
+            # Affichage (uniquement si rendu activé)
+            if render:
+                screen.fill(GRIS_FOND)
+                
+                # Zone de jeu
+                game_area_rect = pygame.Rect(0, SCORE_PANEL_HEIGHT, SCREEN_WIDTH, SCREEN_WIDTH)
+                pygame.draw.rect(screen, NOIR, game_area_rect)
+                
+                draw_grid(screen)
+                apple.draw(screen)
+                snake.draw(screen)
+                
+                # Calculer la moyenne des scores (sur les 100 derniers)
+                avg_score = np.mean(list(agent.scores)[-100:]) if agent.scores else 0
+                
+                # Afficher les informations
+                display_info(screen, font_main, snake, start_time, agent, episode, avg_score, record_score)
+                
+                pygame.display.flip()
+                clock.tick(GAME_SPEED)
         
         # Fin de l'épisode
         if not running:
@@ -594,13 +642,21 @@ def train():
             
         # Mettre à jour les statistiques
         agent.scores.append(snake.score)
-        avg_score = np.mean(agent.scores[-100:])
+        avg_score = np.mean(list(agent.scores)[-100:]) if agent.scores else 0
         agent.avg_scores.append(avg_score)
         agent.epsilons.append(agent.epsilon)
         
         if episode_loss:
             avg_loss = np.mean(episode_loss)
             agent.losses.append(avg_loss)
+        
+        # Nettoyage mémoire périodique pour éviter les ralentissements
+        if episode % 100 == 0:
+            # Libérer le cache GPU/MPS
+            if agent.device.type == "mps":
+                torch.mps.empty_cache()
+            elif agent.device.type == "cuda":
+                torch.cuda.empty_cache()
         
         # Mettre à jour le record
         if snake.score > record_score:
@@ -620,17 +676,31 @@ def train():
         
         # Afficher les statistiques de l'épisode
         status = "VICTOIRE" if victory else "Game Over"
+        elapsed = time.time() - start_time
         print(f"Episode {episode} | {status} | Score: {snake.score} | "
               f"Moy(100): {avg_score:.2f} | Epsilon: {agent.epsilon:.3f} | "
-              f"Steps: {steps} | Récompense: {episode_reward:.1f}")
+              f"Steps: {steps} | Temps: {elapsed:.2f}s")
+        
+        # Afficher un avertissement si les épisodes ralentissent
+        if episode > 100 and episode % 100 == 0:
+            recent_avg = avg_score
+            print(f"📊 Stats Episode {episode}: Score moyen={recent_avg:.1f}, "
+                  f"Mémoire replay={len(agent.memory)}/{MEMORY_SIZE}")
     
     # Fin de l'entraînement
     agent.save_model()
-    pygame.quit()
+    if render:
+        pygame.quit()
 
 def main():
     """Point d'entrée principal - Lance l'entraînement IA."""
-    train()
+    parser = argparse.ArgumentParser(description='Snake IA - Entraînement avec DQN')
+    parser.add_argument('--no-render', action='store_true', 
+                        help='Désactive le rendu graphique pour un entraînement plus rapide')
+    args = parser.parse_args()
+    
+    # Lance l'entraînement avec ou sans rendu
+    train(render=not args.no_render)
 
 if __name__ == '__main__':
     main()
