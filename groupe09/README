@@ -1,1 +1,335 @@
-C'est ici que tu mets la timeline
+# Snake AI - Groupe 09
+
+## Implémentation avec Algorithmes de Pathfinding
+
+### Timeline du Projet
+
+> **Note importante :** Ce projet comporte deux parties développées en parallèle durant la même session (19h40 - 21h15) :
+>
+> - **Partie Algorithmes** : Implémentation de pathfinding classiques (BFS, Dijkstra) et d'un algorithme maison adaptatif
+> - **Partie Deep Q-Learning (IA)** : Implémentation d'un réseau neuronal avec apprentissage par renforcement
+
+---
+
+### Timeline - Partie Deep Q-Learning (IA)
+
+**Phase 1 : Architecture Initiale (19h40 - 20h10)**
+
+- Conception de l'architecture du réseau neuronal (11 états → 256 neurones → 3 actions)
+- Définition des 11 états d'observation du serpent
+- Implémentation du système de récompenses
+- Première version de l'algorithme DQN avec Experience Replay
+
+**Phase 2 : Refactorisation pour Réutiliser serpent.py (20h10 - 20h35)**
+
+- Analyse du code de `serpent.py` pour identifier les composants réutilisables
+- Refactorisation du code pour éviter la duplication
+- Adaptation de l'environnement de jeu pour l'entraînement IA
+- Intégration de la classe Snake et de la logique de base
+
+**Phase 3 : Optimisation des États et Ajout Option -fps (20h35 - 20h55)**
+
+- Optimisation de la représentation des 11 états pour meilleur apprentissage
+- Ajout de l'option `-fps` pour contrôler la vitesse d'entraînement/visualisation
+- Tests de performance avec différents FPS
+- Amélioration de la convergence du modèle
+
+**Phase 4 : Correction du Wrapping et Optimisations Finales (20h55 - 21h15)**
+
+- Correction critique : gestion du wrapping (téléportation aux bords)
+- Synchronisation parfaite entre l'IA et l'environnement
+- Optimisations finales du système de récompenses
+- Sauvegarde automatique des poids du modèle
+
+**Résultat Final :**
+
+Modèle Deep Q-Learning fonctionnel avec apprentissage progressif. Le réseau apprend à éviter les collisions et à chercher la nourriture. L'architecture permet un entraînement rapide et une visualisation en temps réel.
+
+---
+
+### Timeline - Partie Algorithmes
+
+**Phase 1 : Conception et Implémentation des Algorithmes Classiques (19h40 - 20h00)**
+
+- Étude du jeu de base `serpent.py`
+- Implémentation de **BFS** (Breadth-First Search)
+- Implémentation de **Dijkstra** avec priority queue
+- Interface de sélection d'algorithmes (touches 1-4)
+- Tests et comparaisons de performances
+
+**Phase 2 : Développement de l'Algorithme Maison - V1 (20h00 - 20h15)**
+
+- Création d'un algorithme hybride basé sur Hamilton Cycle avec raccourcis
+- Implémentation de la sécurité de base (`can_reach_tail`)
+- Premiers tests : le serpent atteint ~118 pommes mais se bloque
+
+**Phase 3 : Optimisations de Sécurité - V2.0 à V2.2 (20h15 - 20h45)**
+
+- **V2.0** : Ajout de `count_accessible_spaces()` pour évaluer l'espace disponible
+- **V2.1** : Correction du suivi de queue (éviter de suivre quand trop proche)
+- **V2.2** : Implémentation du lookahead (vérification à 2 coups d'avance)
+- Amélioration progressive mais blocages persistants
+
+**Phase 4 : Système Adaptatif Multi-Modes - V2.3 à V2.4 (20h45 - 21h15)**
+
+- **V2.3** : Création d'un système à 4 modes adaptatifs basés sur le taux de remplissage
+  - Mode Agressif (0-40%)
+  - Mode Équilibré (40-60%)
+  - Mode Prudent (60-75%)
+  - Mode Survie (75%+)
+- **V2.4** : Premier ajustement des seuils (survie à 65%)
+- Résultat : le serpent tourne en rond trop longtemps en mode survie
+
+**Phase 5 : Optimisation Fine des Seuils - V2.5 à V2.6 (21h15 - 21h45)**
+
+- **V2.5** : Repousse le mode survie à 72%, ajustement des min_space_ratio
+- **V2.5.1** : Assouplissement du mode équilibré (0.32 → 0.28)
+- **V2.6** : Optimisation maximum - survie repoussée à 78%
+  - Tous les modes assouplis pour croissance ultra-rapide
+  - Tentatives multiples pour trouver l'équilibre parfait vitesse/sécurité
+  - Ajustements fin de tous les paramètres (min_space_ratio, conservation d'espace, etc.)
+
+**Résultat Final :**
+
+Après de nombreux tests et ajustements sur environ 30 minutes, l'algorithme maison atteint ses limites avec un **score d'environ 170 pommes en 4 minutes**. Le compromis entre vitesse et sécurité est délicat à optimiser davantage sans risquer des blocages.
+
+### Utilisation
+
+#### Partie 1 : Algorithmes de Pathfinding
+
+**Lancement du jeu :**
+
+```bash
+python snake-algo.py
+```
+
+**Contrôles :**
+
+- `1` : Mode BFS (Breadth-First Search)
+- `2` : Mode Dijkstra
+- `3` : Mode Hamilton optimisé (par défaut)
+- `4` : Mode Manuel
+- `Flèches` : Contrôle manuel (en mode 4)
+- `ESPACE` : Rejouer après Game Over
+
+#### Partie 2 : Deep Q-Learning (IA)
+
+**Entraînement du modèle :**
+
+```bash
+# Entraînement rapide (vitesse max, sans affichage ralenti)
+python snake_ia.py
+
+# Entraînement avec visualisation à 30 FPS
+python snake_ia.py -fps 30
+
+# Entraînement lent pour observer l'apprentissage
+python snake_ia.py -fps 10
+```
+
+**Options disponibles :**
+
+- `-fps N` : Contrôle la vitesse d'affichage (défaut : vitesse maximale)
+- Sans option : Entraînement à vitesse maximale pour convergence rapide
+
+**Fichiers générés :**
+
+- `snake_dqn_model.pth` : Poids du réseau neuronal (sauvegarde automatique)
+
+---
+
+### Détails Techniques
+
+#### Partie 1 : Algorithmes de Pathfinding
+
+##### 1. BFS (Breadth-First Search)
+
+**Principe :** Explore tous les chemins niveau par niveau pour trouver le plus court chemin vers la pomme.
+
+**Avantages :**
+
+- Trouve toujours le chemin le plus court
+- Simple et efficace pour petites grilles
+- Bon pour comprendre le pathfinding de base
+
+**Inconvénients :**
+
+- Peut se piéger dans des situations sans issue
+- Ne garantit pas la survie à long terme
+- Adapté pour démonstration mais pas optimal
+
+##### 2. Dijkstra
+
+**Principe :** Variante de BFS avec gestion des coûts. Dans notre cas, tous les coûts sont égaux (1 par case).
+
+**Avantages :**
+
+- Extensible pour coûts variables
+- Pathfinding optimal
+- Base pour A* (avec heuristique)
+
+**Inconvénients :**
+
+- Performance similaire à BFS dans notre cas
+- Plus complexe sans bénéfice majeur ici
+- Peut aussi se piéger
+
+##### 3. Algorithme Maison - Hamilton Cycle Adaptatif
+
+**Principe :** Algorithme hybride basé sur les concepts de Hamilton Cycle, A*, et BFS avec un système adaptatif à 4 modes selon le taux de remplissage de la grille.
+
+**Stratégie Multi-Modes :**
+
+1. **Mode Agressif (0-35%)** : Croissance ultra-rapide vers la pomme
+2. **Mode Équilibré (35-60%)** : Balance entre vitesse et sécurité
+3. **Mode Prudent (60-78%)** : Sécurité renforcée avec vérifications strictes
+4. **Mode Survie (78%+)** : Suivi de queue en boucle serrée
+
+**Mécanismes de Sécurité :**
+
+- **Lookahead à 2 coups** : Vérifie qu'il y a toujours une sortie après le prochain mouvement
+- **Count accessible spaces** : BFS pour compter l'espace accessible après chaque mouvement
+- **Can reach tail** : Garantit qu'on peut toujours rejoindre sa queue
+- **Min space ratio dynamique** : Ajusté selon le mode (0.22 à 0.42)
+
+**Performance :**
+
+- **Score moyen : ~170 pommes en 4 minutes** (grille 15x15 = 224 max)
+- Compromis optimal entre vitesse et sécurité trouvé après de nombreux ajustements
+- Système adaptatif qui change de stratégie selon la phase de jeu
+
+#### Partie 2 : Deep Q-Learning (IA)
+
+##### Architecture du Réseau Neuronal
+
+**Structure :**
+
+- **Couche d'entrée** : 11 états (observations de l'environnement)
+- **Couche cachée** : 256 neurones avec activation ReLU
+- **Couche de sortie** : 3 actions possibles (Gauche, Tout droit, Droite)
+
+**Les 11 États d'Observation :**
+
+1. **Danger immédiat (3 états)** : Danger à gauche, tout droit, droite
+2. **Direction actuelle (4 états)** : Nord, Sud, Est, Ouest (one-hot encoding)
+3. **Position de la nourriture (4 états)** : Nourriture à gauche, droite, en haut, en bas
+
+Ces 11 états permettent au réseau de comprendre :
+
+- Où sont les dangers immédiats
+- Dans quelle direction le serpent se déplace
+- Où se trouve la nourriture par rapport à la tête
+
+##### Système de Récompenses
+
+- **+10** : Manger une pomme (renforcement positif fort)
+- **-10** : Collision / Game Over (punition forte)
+- **0** : Mouvement neutre (exploration)
+
+Ce système simple mais efficace encourage le serpent à chercher la nourriture tout en évitant les collisions.
+
+##### Algorithme d'Apprentissage
+
+**Deep Q-Network (DQN) avec Experience Replay :**
+
+1. **Experience Replay** : Stockage de 100 000 expériences (état, action, récompense, état suivant)
+2. **Batch Learning** : Apprentissage par mini-batches de 1000 expériences
+3. **ε-greedy** : Exploration vs Exploitation
+   - Début : ε élevé (80%) = exploration
+   - Progressif : ε décroît jusqu'à 0% = exploitation pure
+4. **Optimizer** : Adam avec learning rate adaptatif
+5. **Loss** : Mean Squared Error sur les Q-values
+
+##### Particularités de l'Implémentation
+
+**Gestion du Wrapping :**
+
+- Le serpent peut traverser les bords de la grille (téléportation)
+- Les états tiennent compte du wrapping pour détecter les dangers
+- Synchronisation parfaite entre l'IA et l'environnement
+
+**Réutilisation du Code :**
+
+- Utilise les classes et fonctions de `serpent.py`
+- Évite la duplication de code
+- Environnement de jeu identique pour cohérence
+
+**Sauvegarde Automatique :**
+
+- Les poids du modèle sont sauvegardés automatiquement
+- Permet de reprendre l'entraînement ou d'utiliser un modèle pré-entraîné
+- Fichier : `snake_dqn_model.pth`
+
+**Option -fps :**
+
+- Permet de contrôler la vitesse de visualisation
+- Sans option : vitesse max pour entraînement rapide
+- Avec -fps : ralenti pour observer l'apprentissage
+
+---
+
+### Comparaison des Approches
+
+| Approche           | Type              | Avantages                 | Utilisation          |
+|--------------------|-------------------|---------------------------|----------------------|
+| BFS                | Pathfinding       | Simple, optimal           | Démonstration        |
+| Dijkstra           | Pathfinding       | Extensible, base pour A*  | Démonstration        |
+| **Algo Maison**    | **Hybride adaptatif** | **~170 en 4min**      | **Production**       |
+| **Deep Q-Learning**| **Apprentissage** | **Apprend seul**          | **Recherche/Expérimentation** |
+
+---
+
+### Concepts Techniques Clés
+
+**Can Reach Tail (Fonction Clé) :**
+
+```python
+def can_reach_tail(start, snake_body):
+    """
+    Vérifie si on peut atteindre la queue après avoir mangé.
+    Évite de se piéger dans un cul-de-sac.
+    """
+```
+
+Cette fonction est cruciale pour l'algorithme Hamilton. Elle simule le mouvement et vérifie qu'un chemin existe toujours vers la queue, garantissant qu'on ne se bloque jamais.
+
+**Follow Tail (Stratégie de Survie) :**
+
+```python
+def follow_tail(snake):
+    """
+    Suit la queue du serpent - ultra sûr.
+    Si impossible d'atteindre la pomme en sécurité,
+    on tourne en rond en suivant notre queue.
+    """
+```
+
+### Philosophie de l'Algorithme Maison
+
+L'objectif était de créer un algorithme qui trouve le meilleur équilibre entre **vitesse** et **sécurité** :
+
+1. **Adaptation dynamique** : Change de stratégie selon le taux de remplissage
+2. **Sécurité multicouche** : Lookahead, espace accessible, vérification de queue
+3. **Optimisation itérative** : Ajustement fin des seuils après de nombreux tests
+4. **Compromis assumé** : ~170 pommes en 4min représente une limite pratique
+
+**Limites rencontrées :**
+
+Après environ 30 minutes d'ajustements fins des seuils (V2.3 → V2.6), l'algorithme atteint ses limites. Pousser plus loin l'agressivité risque des blocages, tandis que trop de prudence ralentit excessivement la progression.
+
+### Références
+
+- Document "Reinforcement Learning.pdf" (Groupe 09)
+- serpent.py (Jeu de base)
+- Algorithmes de graphes : BFS, Dijkstra, A*
+- Hamiltonian Path problem (NP-complet)
+
+### Améliorations Futures
+
+Pour dépasser les limites actuelles :
+
+1. **Machine Learning** : Q-Learning ou Deep Q-Network pour apprendre les seuils optimaux
+2. **Simulation Monte Carlo** : Tester des milliers de combinaisons de seuils automatiquement
+3. **Hamiltonian précalculé** : Utiliser un vrai cycle hamiltonien optimal pour la grille
+4. **Lookahead plus profond** : Analyser 3-4 coups à l'avance (coût computationnel élevé)
+5. **Heuristiques avancées** : Détection de patterns dangereux spécifiques
