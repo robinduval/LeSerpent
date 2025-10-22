@@ -1,1 +1,5 @@
-C'est ici que tu mets la timeline
+| Temps écoulé | IA (snake-ia.py) | Algo (snake-algo.py) | Manuel (serpent.py) |
+| ------------ | ---------------- | -------------------- | ------------------- |
+| 🕐 20 min    | 20              | 35                  | 80                 |
+| 🕓 45 min    | 38              | 70                  | 100                |
+| ⏰ 1h30       | 55 en 30sec             | 101 en 19sec                  | 100                |
