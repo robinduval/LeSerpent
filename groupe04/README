@@ -1,2 +1,12 @@
-C'est ici que tu mets la timeline
-merci le push force
+19h30 : Lecture du sujet
+19h40 : Demarrage du code de snake-IA - test manuel en parallele, highscore de 60 (environ) en 4-5 mins
+20h : test de snake-ia, highscore de 62 sur un echantillon de 500 tests environ (tentative du 62 en quelque secondes)
+20h10 : démarrage du code pour différentes versions algo (dijkstra, A*, GBFS)
+20h30 : test des algo, highscore de 104 avec le A* en 2 mins environ sur la premiere tentative, moyenne des autres algo a environ 60-70 - vingtaine de parties de 1-2mins
+20h40 : tentative d'amélioration du A* avec l'ajout de nouvelles stratégies en fonction de la longueur du snake et du score
+20h50 : test du nouvel algo (pas concluant)
+
+Recap:
+ IA : ~10sec - 62
+ Algo : 2mins - 104
+ Humain : ~4mins - ~60
