@@ -1,1 +1,12 @@
-C'est ici que tu mets la timeline
+19:30 : Lecture du sujet
+19:40 : Demarrage de l'algorithme et IA
+19:55 : [ALGO] Implémentation de l'algo Dijkstra, score obtenu : avec score allant de 18 à 50, avec une médiane à 42
+20:00 : [IA] premiere version headless pui changement pour non headless
+20:05: [IA] changement pour avoir l'headless
+20:10: [ALGO] Algo a*, score de 82, 23, 61
+20:30: [ALGO] Algo a*, amélioré, recalcule du chemin à chaque étape
+20:35: [IA] Changement de poids, record 38
+20:36: [ALGO] Meilleur algorithme mais collision avec le mur enlevé, donnant des scores moins élevés (35 à 53)
+20:45 [IA] Changement les poids et récompenses Record 41
+20:50: [ALGO] Si pas de chemin possible vers la pomme, trouver le chemin le plus loin pour maximiser l'espace
+21:00: [ALGO] Restoration de ne pas perdre si on dépasse l'écran, record 72
